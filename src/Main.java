@@ -1,12 +1,14 @@
+import java.util.ArrayList;
 import java.util.Arrays;
 
-class AllTheSame{
+class AllTheSame {
     @Override
-    public boolean equals(Object obj){
+    public boolean equals(Object obj) {
         return obj instanceof AllTheSame;
     }
+
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return 0;
     }
 
@@ -107,6 +109,7 @@ public class Main {
             range1to100[i] = i + 1;
         }
 
+
         final var pl1to100 = new PersistentList<>(range1to100);
         System.out.println(pl1to100.size());
         System.out.println("--");
@@ -153,7 +156,7 @@ public class Main {
 
 
         final var range0to9 = new Integer[10];
-        for(int i = 0; i < range0to9.length; ++i) range0to9[i] = i;
+        for (int i = 0; i < range0to9.length; ++i) range0to9[i] = i;
         final var pl0to9 = new PersistentList<>(range0to9);
         System.out.println("------");
         printIterable(pl0to9);
@@ -194,9 +197,11 @@ public class Main {
         printIterable(pl1to1000000.subList(0, 100));
 
 
-        final var copypl1to100 = pl1to1000000.subList(0, 100);
+        final var copypl1to100 = pl1to1000.subList(0, 100);
         System.out.println("true: " + pl1to100.equals(copypl1to100));
         System.out.println("true: " + pl1to100.equals(copypl1to100));
         System.out.println();
+
+
     }
 }
