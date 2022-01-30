@@ -1,7 +1,4 @@
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Objects;
-import java.util.Stack;
+import java.util.*;
 
 // TODO add node iterator
 
@@ -10,6 +7,9 @@ public class PersistentList<T> implements Iterable<T> {
     private static final Leaf EMPTY_LEAF = new Leaf(new Object[0]);
     private static final Object[] EMPTY_ARRAY = new Object[0];
     private final Node root;
+    private final HashSet<PersistentList> equalTo = new HashSet<>();
+    private final HashSet<PersistentList> notEqualTo = new HashSet<>();
+
 
     private PersistentList(Node root) {
         nullCheck(root);
@@ -31,8 +31,28 @@ public class PersistentList<T> implements Iterable<T> {
 
     @Override
     public boolean equals(Object obj) {
+        // If it's the same instance, it's obviously equal.
         if (this == obj) return true;
-        return obj instanceof PersistentList<?> other && checkValueEquality(root, other.root);
+        if (obj instanceof PersistentList<?> other) {
+            // try cache
+            if (equalTo.contains(obj)) return true;
+            if (notEqualTo.contains(obj)) return false;
+
+            // try constant-time quick check
+            final var quickResult = quickCheckValueEquality(root, other.root);
+
+            if (quickResult != null) {
+                return quickResult;
+            } else if (fullCheckValueEquality(root, other.root)) { // resort to full check, with caching for later
+                equalTo.add(other);
+                return true;
+            } else {
+                notEqualTo.add(other);
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     public Iterator<T> iterator() {
@@ -231,6 +251,8 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node balanced(Node n) {
+        // So hopefully this is better than nothing, but it is just the balance logic taken from an AVL tree where
+        // you can only insert one item at a time. I don't know how well it works here.
         if (n instanceof Structure s) {
             final var leftBalanced = balanced(s.left);
             final var rightBalanced = balanced(s.right);
@@ -250,7 +272,9 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node pruned(Node n) {
-        if (n instanceof Structure s) {
+        if (n.itemCount() == 0) {
+            return n;
+        } else if (n instanceof Structure s) {
             if (s.left.itemCount() == 0) {
                 return pruned(s.right);
             } else if (s.right.itemCount() == 0) {
@@ -287,13 +311,18 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    private static boolean checkValueEquality(Node a, Node b) {
+    private static Boolean quickCheckValueEquality(Node a, Node b) {
         if (a == b) return true;
         if (a.itemCount() != b.itemCount()) return false;
         if (a.itemCount() == 0 && b.itemCount() == 0) return true;
 
         if (a.totalHash() != b.totalHash()) return false;
 
+        // Equality could not be determined by quick check.
+        return null;
+    }
+
+    private static boolean fullCheckValueEquality(Node a, Node b) {
         final var leafIteratorA = new LeafIterator(a);
         final var leafIteratorB = new LeafIterator(b);
 

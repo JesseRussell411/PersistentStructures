@@ -118,7 +118,9 @@ final var theRestOfTheAlphabet = new String[]
         System.out.println(modded.get(50));
         printIterable(modded);
         printIterable(pl1to100);
-        System.out.println(modded1.equals(modded2.set(42, 42)));
+        System.out.println("true:  " + modded1.equals(modded2));
+        System.out.println("true:  " + modded1.push(9).pull().equals(modded2));
+        System.out.println("false: " + modded1.equals(modded2.set(42, 42)));
 
     }
 }
