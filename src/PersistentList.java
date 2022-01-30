@@ -1,4 +1,3 @@
-import java.lang.ref.WeakReference;
 import java.util.*;
 
 // TODO add node iterator
@@ -9,8 +8,15 @@ public class PersistentList<T> implements Iterable<T> {
     private static final Leaf EMPTY_LEAF = new Leaf(new Object[0]);
     private static final Object[] EMPTY_ARRAY = new Object[0];
     private final Node root;
-    private final Map<PersistentList<?>, Boolean> equalityCache = new WeakHashMap<>();
+    private final Map<IdentityReference<PersistentList<?>>, Boolean> equalityCache = new WeakHashMap<>();
     private Integer hashCache = null;
+
+    private Boolean checkEqualityFromCache(PersistentList<?> other){
+        return equalityCache.get(new IdentityReference<>(other));
+    }
+    private void cacheEqaulity(PersistentList<?> other, boolean equality){
+        equalityCache.put(new IdentityReference<>(other), equality);
+    }
 
     private PersistentList(Node root) {
         nullCheck(root);
@@ -44,7 +50,7 @@ public class PersistentList<T> implements Iterable<T> {
             if (size() != other.size()) return false;
             if (size() == 0 && other.size() == 0) return true;
             // check the cache
-            final var fromCache = equalityCache.get(other);
+            final var fromCache = checkEqualityFromCache(other);
             if (fromCache != null)return fromCache;
             // Check hashCodes
             // * HashCodes are cached, so these will be slow the first time but fast subsequent times.
@@ -54,11 +60,11 @@ public class PersistentList<T> implements Iterable<T> {
             // Quick checks failed, full check needed. Result will be cached for later.
             if (fullCheckValueEquality(root, other.root)) {
                 // add to cache
-                equalityCache.put(other, true);
+                cacheEqaulity(other, true);
                 return true;
             } else {
                 // add to cache
-                equalityCache.put(other, false);
+                cacheEqaulity(other, false);
                 return false;
             }
         } else {

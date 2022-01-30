@@ -1,5 +1,17 @@
 import java.util.Arrays;
 
+class AllTheSame{
+    @Override
+    public boolean equals(Object obj){
+        return obj instanceof AllTheSame;
+    }
+    @Override
+    public int hashCode(){
+        return 0;
+    }
+
+}
+
 public class Main {
     public static String stringFromIterable(Iterable<?> it) {
         final var result = new StringBuilder();
