@@ -1,17 +1,16 @@
+import java.lang.ref.WeakReference;
 import java.util.*;
 
 // TODO add node iterator
 // TODO improve balancing algorithm (currently retro-fitting the balancing algorithm from an avl tree. It kinda works a little I think. For all I know it makes things worse).
 
 public class PersistentList<T> implements Iterable<T> {
-    private static final int LEAF_ITEM_LIMIT = 3;
+    private static final int LEAF_ITEM_LIMIT = 32;
     private static final Leaf EMPTY_LEAF = new Leaf(new Object[0]);
     private static final Object[] EMPTY_ARRAY = new Object[0];
     private final Node root;
-    private final HashSet<PersistentList> equalTo = new HashSet<>();
-    private final HashSet<PersistentList> notEqualTo = new HashSet<>();
+    private final Map<PersistentList<?>, Boolean> equalityCache = new WeakHashMap<>();
     private Integer hashCache = null;
-
 
     private PersistentList(Node root) {
         nullCheck(root);
@@ -45,8 +44,8 @@ public class PersistentList<T> implements Iterable<T> {
             if (size() != other.size()) return false;
             if (size() == 0 && other.size() == 0) return true;
             // check the cache
-            if (equalTo.contains(obj)) return true;
-            if (notEqualTo.contains(obj)) return false;
+            final var fromCache = equalityCache.get(other);
+            if (fromCache != null)return fromCache;
             // Check hashCodes
             // * HashCodes are cached, so these will be slow the first time but fast subsequent times.
             if (root.totalQuickHash() != other.root.totalQuickHash()) return false;
@@ -54,10 +53,12 @@ public class PersistentList<T> implements Iterable<T> {
 
             // Quick checks failed, full check needed. Result will be cached for later.
             if (fullCheckValueEquality(root, other.root)) {
-                equalTo.add(other);
+                // add to cache
+                equalityCache.put(other, true);
                 return true;
             } else {
-                notEqualTo.add(other);
+                // add to cache
+                equalityCache.put(other, false);
                 return false;
             }
         } else {

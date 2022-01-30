@@ -177,9 +177,14 @@ public class Main {
         printIterable(pl0to9.subList(7, 2));
         printIterable(pl0to9.subList(8, 2));
 
+        printIterable(pl1to1000000.subList(999, 1000));
+        printIterable(pl1to100);
+        printIterable(pl1to1000000.subList(0, 100));
 
 
-
-
+        final var copypl1to100 = pl1to1000000.subList(0, 100);
+        System.out.println("true: " + pl1to100.equals(copypl1to100));
+        System.out.println("true: " + pl1to100.equals(copypl1to100));
+        System.out.println();
     }
 }
