@@ -1,14 +1,16 @@
 import java.util.*;
 
 // TODO add node iterator
+// TODO improve balancing algorithm (currently retro-fitting the balancing algorithm from an avl tree. It kinda works a little I think. For all I know it makes things worse).
 
 public class PersistentList<T> implements Iterable<T> {
-    private static final int LEAF_ITEM_LIMIT = 2;
+    private static final int LEAF_ITEM_LIMIT = 3;
     private static final Leaf EMPTY_LEAF = new Leaf(new Object[0]);
     private static final Object[] EMPTY_ARRAY = new Object[0];
     private final Node root;
     private final HashSet<PersistentList> equalTo = new HashSet<>();
     private final HashSet<PersistentList> notEqualTo = new HashSet<>();
+    private Integer hashCache = null;
 
 
     private PersistentList(Node root) {
@@ -26,7 +28,10 @@ public class PersistentList<T> implements Iterable<T> {
 
     @Override
     public int hashCode() {
-        return root.totalHash();
+        if (hashCache == null) {
+            hashCache = hashIterable(this);
+        }
+        return root.totalQuickHash();
     }
 
     @Override
@@ -34,16 +39,21 @@ public class PersistentList<T> implements Iterable<T> {
         // If it's the same instance, it's obviously equal.
         if (this == obj) return true;
         if (obj instanceof PersistentList<?> other) {
-            // try cache
+
+            // try quick checks from fastest -> slowest
+            if (root == other.root) return true;
+            if (size() != other.size()) return false;
+            if (size() == 0 && other.size() == 0) return true;
+            // check the cache
             if (equalTo.contains(obj)) return true;
             if (notEqualTo.contains(obj)) return false;
+            // Check hashCodes
+            // * HashCodes are cached, so these will be slow the first time but fast subsequent times.
+            if (root.totalQuickHash() != other.root.totalQuickHash()) return false;
+            if (hashCode() != other.hashCode()) return false;
 
-            // try constant-time quick check
-            final var quickResult = quickCheckValueEquality(root, other.root);
-
-            if (quickResult != null) {
-                return quickResult;
-            } else if (fullCheckValueEquality(root, other.root)) { // resort to full check, with caching for later
+            // Quick checks failed, full check needed. Result will be cached for later.
+            if (fullCheckValueEquality(root, other.root)) {
                 equalTo.add(other);
                 return true;
             } else {
@@ -110,8 +120,11 @@ public class PersistentList<T> implements Iterable<T> {
         indexCheck(start, size());
         final var end = start + length;
         if (end > size()) throw new IndexOutOfBoundsException(end);
+        final var toPrune = new boolRef(false);
+        final var result = subListFrom(root, start, end, toPrune);
 
-        return new PersistentList<>(subListFrom(root, start, end));
+
+        return new PersistentList<>(toPrune.value ? balanced(pruned(result)) : result);
     }
 
     public PersistentList<T> pull() {
@@ -226,25 +239,31 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    public Node subListFrom(Node n, int start, int end) {
+    private static Node subListFrom(Node n, int start, int end, boolRef toPrune) {
         if (n instanceof Structure s) {
             if (start < s.left.itemCount()) {
                 if (end > s.left.itemCount()) {
                     return new Structure(
-                            subListFrom(s.left, start, s.left.itemCount()),
-                            subListFrom(s.right, 0, end - s.left.itemCount()));
+                            subListFrom(s.left, start, s.left.itemCount(), toPrune),
+                            subListFrom(s.right, 0, end - s.left.itemCount(), toPrune));
                 } else {
+                    toPrune.value = true;
                     return new Structure(
-                            subListFrom(s.left, start, end),
-                            s.right);
+                            subListFrom(s.left, start, end, toPrune),
+                            EMPTY_LEAF);
                 }
             } else {
+                toPrune.value = true;
                 return new Structure(
-                        s.left,
-                        subListFrom(s.right, start - s.left.itemCount(), end - s.left.itemCount()));
+                        EMPTY_LEAF,
+                        subListFrom(s.right, start - s.left.itemCount(), end - s.left.itemCount(), toPrune));
             }
         } else if (n instanceof Leaf l) {
-            return new Leaf(Arrays.copyOfRange(l.items, start, end));
+            final var items = Arrays.copyOfRange(l.items, start, end);
+            if (items.length == 0) {
+                toPrune.value = true;
+            }
+            return new Leaf(items);
         } else {
             throw new NullPointerException();
         }
@@ -311,17 +330,6 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    private static Boolean quickCheckValueEquality(Node a, Node b) {
-        if (a == b) return true;
-        if (a.itemCount() != b.itemCount()) return false;
-        if (a.itemCount() == 0 && b.itemCount() == 0) return true;
-
-        if (a.totalHash() != b.totalHash()) return false;
-
-        // Equality could not be determined by quick check.
-        return null;
-    }
-
     private static boolean fullCheckValueEquality(Node a, Node b) {
         final var leafIteratorA = new LeafIterator(a);
         final var leafIteratorB = new LeafIterator(b);
@@ -361,6 +369,39 @@ public class PersistentList<T> implements Iterable<T> {
         if (nullable == null) throw new NullPointerException();
     }
 
+    public static int hashCodeOf(Object o) {
+        return o == null ? 0 : o.hashCode();
+    }
+
+    public static int hashIterable(Iterable<?> objects) {
+        int result = 0;
+
+        for (final var obj : objects) {
+            result = Objects.hash(result, obj);
+        }
+
+        return result;
+    }
+
+    /**
+     * Generates a hash that isn't well distributes but at least doesn't care about order.
+     */
+    public static int quickHash(Object a, Object b) {
+        return hashCodeOf(a) ^ hashCodeOf(b);
+    }
+
+    /**
+     * Generates a hash that isn't well distributes but at least doesn't care about order.
+     */
+    public static int quickHash(Object[] objects) {
+        int result = 0;
+        for (final var obj : objects) {
+            result = quickHash(result, obj);
+        }
+
+        return result;
+    }
+
     private static Object[] withInsertion(Object[] original, int index, Object[] values) {
         if (values == null || values.length == 0) return original;
         indexCheck(index, original.length + 1);
@@ -373,7 +414,7 @@ public class PersistentList<T> implements Iterable<T> {
         }
 
         for (int i = index; i < index + values.length; ++i) {
-            result[i] = values[i];
+            result[i] = values[i - index];
         }
 
         for (int i = index + values.length; i < original.length + values.length; ++i) {
@@ -482,7 +523,7 @@ public class PersistentList<T> implements Iterable<T> {
 
         int itemCount();
 
-        int totalHash();
+        int totalQuickHash();
 
         int weight();
 
@@ -494,7 +535,7 @@ public class PersistentList<T> implements Iterable<T> {
         public final Node right;
         public final int itemCount;
         public final int leafCount;
-        private Integer totalHash = null;
+        private Integer totalQuickHashCache = null;
         private final int weight;
         private final int balanceFactor;
 
@@ -520,12 +561,12 @@ public class PersistentList<T> implements Iterable<T> {
             return itemCount;
         }
 
-        public int totalHash() {
-            if (totalHash == null) {
-                totalHash = Objects.hash(left.totalHash(), right.totalHash());
+        public int totalQuickHash() {
+            if (totalQuickHashCache == null) {
+                totalQuickHashCache = quickHash(left.totalQuickHash(), right.totalQuickHash());
             }
 
-            return totalHash;
+            return totalQuickHashCache;
         }
 
         public int weight() {
@@ -539,18 +580,18 @@ public class PersistentList<T> implements Iterable<T> {
 
     private static class Leaf implements Node {
         public final Object[] items;
-        private Integer totalHash = null;
+        private Integer totalQuickHashCache = null;
 
         public Leaf(Object[] items) {
             this.items = items == null ? new Object[0] : items;
         }
 
-        public int totalHash() {
-            if (totalHash == null) {
-                totalHash = Arrays.hashCode(items);
+        public int totalQuickHash() {
+            if (totalQuickHashCache == null) {
+                totalQuickHashCache = quickHash(items);
             }
 
-            return totalHash;
+            return totalQuickHashCache;
         }
 
         public int leafCount() {
