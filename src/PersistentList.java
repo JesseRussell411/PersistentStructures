@@ -11,8 +11,6 @@ public class PersistentList<T> implements Iterable<T> {
     private final Map<PersistentList<?>, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
     private Integer hashCache = null;
     private final Object hashCacheLock = new Object();
-    private String stringCache;
-    private final Object stringCacheLock = new Object();
 
     private PersistentList(Node root) {
         nullCheck(root);
@@ -27,32 +25,23 @@ public class PersistentList<T> implements Iterable<T> {
         this(EMPTY_LEAF);
     }
 
-    @Override
     public String toString() {
-        if (stringCache != null) return stringCache;
+        StringBuilder result = new StringBuilder("[ ");
+        boolean first = true;
 
-        synchronized (stringCacheLock) {
-            if (stringCache == null) {
-                StringBuilder result = new StringBuilder("[ ");
-                boolean first = true;
-
-                for (final var item : this) {
-                    if (!first) {
-                        result.append(", ");
-                    }
-
-                    if (item != null) {
-                        result.append(item.toString());
-                    }
-                    first = false;
-                }
-                result.append(" ]");
-
-                stringCache = result.toString();
+        for (final var item : this) {
+            if (!first) {
+                result.append(", ");
             }
-        }
 
-        return stringCache;
+            if (item != null) {
+                result.append(item);
+            }
+            first = false;
+        }
+        result.append(" ]");
+
+        return result.toString();
     }
 
     @Override
