@@ -121,12 +121,14 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList<T> insert(int index, T[] values) {
-        indexCheck(index, size());
+        indexCheck(index, size() + 1);
 
         return new PersistentList<>(withInsertion(root, index, values));
     }
 
     public PersistentList<T> add(int index, T value) {
+        indexCheck(index, size() + 1);
+
         return new PersistentList<>(withInsertion(root, index, new Object[]{value}));
     }
 
@@ -139,11 +141,7 @@ public class PersistentList<T> implements Iterable<T> {
         indexCheck(index, size());
         final var end = index + length;
         if (end > size()) throw new IndexOutOfBoundsException(end);
-
-        final var toPrune = new boolRef(false);
-        final var result = withoutRange(root, index, end, toPrune);
-
-        return new PersistentList<>(toPrune.value ? balanced(pruned(result)) : result);
+        return new PersistentList<>(withoutRange(root, index, end));
     }
 
     public PersistentList<T> remove(int index) {
@@ -151,16 +149,15 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList<T> subList(int start, int length) {
-        if (start == 0 && length == size()) return this;
         if (length <= 0) return new PersistentList<>(EMPTY_LEAF);
+        if (start == 0 && length == size()) return this;
+
         indexCheck(start, size());
+
         final var end = start + length;
         if (end > size()) throw new IndexOutOfBoundsException(end);
-        final var toPrune = new boolRef(false);
-        final var result = subListFrom(root, start, end, toPrune);
 
-
-        return new PersistentList<>(toPrune.value ? balanced(pruned(result)) : result);
+        return new PersistentList<>(subListFrom(root, start, end));
     }
 
     public PersistentList<T> pull() {
@@ -180,18 +177,7 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     // ==================== Internal Modification ========================
-    private static Node withInsertion(Node n, int index, Object[] values) {
-        indexCheck(index, n.itemCount() + 1);
-        if (values == null || values.length == 0) return n;
-
-        final var toBalance = new boolRef(false);
-        final var result = withInsertion(n, index, values, toBalance);
-        return toBalance.value ? balanced(result) : result;
-    }
-
     private static Object valueFrom(Node n, int index) {
-        indexCheck(index, n.itemCount());
-
         if (n instanceof Structure s) {
             if (index < s.left.itemCount()) {
                 return valueFrom(s.left, index);
@@ -206,8 +192,6 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node withValueAtIndex(Node n, int index, Object value) {
-        indexCheck(index, n.itemCount());
-
         if (n instanceof Structure s) {
             if (index < s.left.itemCount()) {
                 return new Structure(withValueAtIndex(s.left, index, value), s.right);
@@ -223,122 +207,172 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    private static Node withInsertion(Node n, int index, Object[] values, boolRef toBalance) {
+    private static Node withInsertion(Node n, int index, Object[] values) {
         if (n instanceof Structure s) {
             if (index < s.left.itemCount()) {
-                return new Structure(withInsertion(s.left, index, values, toBalance), s.right);
+                return shallowlyBalanced(
+                        new Structure(
+                                withInsertion(s.left, index, values),
+                                s.right));
             } else {
-                return new Structure(s.left, withInsertion(s.right, index - s.left.itemCount(), values, toBalance));
+                return shallowlyBalanced(
+                        new Structure(
+                                s.left,
+                                withInsertion(s.right, index - s.left.itemCount(), values)));
             }
         } else if (n instanceof Leaf l) {
             final var items = withInsertion(l.items, index, values);
+
             if (items.length < LEAF_ITEM_LIMIT) {
                 return new Leaf(items);
             } else {
-                toBalance.value = true;
-                final var partitions = partition(items, LEAF_ITEM_LIMIT);
-                return fromPartitions(partitions, 0, partitions.length);
+                return fromPartitions(
+                        partition(items, LEAF_ITEM_LIMIT));
             }
         } else {
             throw new NullPointerException();
         }
     }
 
-    private static Node withoutRange(Node n, int index, int end, boolRef toPrune) {
-        if (n instanceof Structure s) {
-            if (index < s.left.itemCount()) {
-                if (end > s.left.itemCount()) {
-                    return new Structure(
-                            withoutRange(s.left, index, s.left.itemCount(), toPrune),
-                            withoutRange(s.right, 0, end - s.left.itemCount(), toPrune));
-                } else {
-                    return new Structure(
-                            withoutRange(s.left, index, end, toPrune),
-                            s.right);
-                }
-            } else {
-                return new Structure(
-                        s.left,
-                        withoutRange(s.right, index - s.left.itemCount(), end - s.left.itemCount(), toPrune));
-            }
-        } else if (n instanceof Leaf l) {
-            final var items = withoutRange(l.items, index, end - index);
+    private static Node withoutRange(Node n, int start, int end) {
+        if (start == 0 && end == n.itemCount()) return EMPTY_LEAF;
+        if (start == end) return n;
 
-            if (items.length == 0) {
-                toPrune.value = true;
-                return EMPTY_LEAF;
-            }
-
-            return new Leaf(items);
-        } else {
-            throw new NullPointerException();
-        }
-    }
-
-    private static Node subListFrom(Node n, int start, int end, boolRef toPrune) {
         if (n instanceof Structure s) {
             if (start < s.left.itemCount()) {
                 if (end > s.left.itemCount()) {
-                    return new Structure(
-                            subListFrom(s.left, start, s.left.itemCount(), toPrune),
-                            subListFrom(s.right, 0, end - s.left.itemCount(), toPrune));
+                    return shallowlyBalanced(
+                            shallowlyPruned(new Structure(
+                                    withoutRange(s.left, start, s.left.itemCount()),
+                                    withoutRange(s.right, 0, end - s.left.itemCount()))));
                 } else {
-                    toPrune.value = true;
-                    return new Structure(
-                            subListFrom(s.left, start, end, toPrune),
-                            EMPTY_LEAF);
+                    return shallowlyBalanced(
+                            shallowlyPruned(new Structure(
+                                    withoutRange(s.left, start, end),
+                                    s.right)));
                 }
             } else {
-                toPrune.value = true;
-                return new Structure(
-                        EMPTY_LEAF,
-                        subListFrom(s.right, start - s.left.itemCount(), end - s.left.itemCount(), toPrune));
+                return shallowlyBalanced(
+                        shallowlyPruned(new Structure(
+                                s.left,
+                                withoutRange(
+                                        s.right,
+                                        start - s.left.itemCount(),
+                                        end - s.left.itemCount()))));
             }
         } else if (n instanceof Leaf l) {
-            final var items = Arrays.copyOfRange(l.items, start, end);
-            if (items.length == 0) {
-                toPrune.value = true;
-            }
-            return new Leaf(items);
+            final var items = withoutRange(l.items, start, end - start);
+
+            return items.length == 0 ? EMPTY_LEAF : new Leaf(items);
         } else {
             throw new NullPointerException();
         }
     }
 
-    private static Node balanced(Node n) {
-        // So hopefully this is better than nothing, but it is just the balance logic taken from an AVL tree where
-        // you can only insert one item at a time. I don't know how well it works here.
+    private static Node subListFrom(Node n, int start, int end) {
         if (n instanceof Structure s) {
-            final var leftBalanced = balanced(s.left);
-            final var rightBalanced = balanced(s.right);
-            final var forceCopy = leftBalanced != s.left || rightBalanced != s.right;
-            final var result = forceCopy ? new Structure(leftBalanced, rightBalanced) : s;
-
-            if (result.balanceFactor() < -1) {
-                return rotatedRight(result);
-            } else if (result.balanceFactor() > 1) {
-                return rotatedLeft(result);
+            if (start < s.left.itemCount()) {
+                if (end > s.left.itemCount()) {
+                    return shallowlyBalanced(
+                            shallowlyPruned(new Structure(
+                                    subListFrom(s.left, start, s.left.itemCount()),
+                                    subListFrom(s.right, 0, end - s.left.itemCount()))));
+                } else {
+                    return shallowlyBalanced(
+                            shallowlyPruned(new Structure(
+                                    subListFrom(s.left, start, end),
+                                    EMPTY_LEAF)));
+                }
             } else {
-                return result;
+                return shallowlyBalanced(shallowlyPruned(
+                        new Structure(
+                                EMPTY_LEAF,
+                                subListFrom(s.right,
+                                        start - s.left.itemCount(),
+                                        end - s.left.itemCount()))));
+            }
+        } else if (n instanceof Leaf l) {
+            if (start == 0 && end == l.items.length) return l;
+
+            final var items = Arrays.copyOfRange(l.items, start, end);
+
+            if (items.length == 0) {
+                return EMPTY_LEAF;
+            } else {
+                return new Leaf(items);
             }
         } else {
-            return n;
+            throw new NullPointerException();
         }
     }
 
-    private static Node pruned(Node n) {
+    private static Node shallowlyBalanced(Node n) {
+        // everything is awful
+        int bestAbsoluteBalanceFactor = n.absoluteBalanceFactor();
+        var result = n;
+        while (true) {
+            final var rotatedLeftAbsoluteBalanceFactor = Math.abs(rotatedLeftBalanceFactor(result));
+            final var rotatedRightAbsoluteBalanceFactor = Math.abs(rotatedRightBalanceFactor(result));
+
+            if (rotatedLeftAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
+                if (rotatedRightAbsoluteBalanceFactor < rotatedLeftAbsoluteBalanceFactor) {
+                    result = rotatedRight(result);
+                } else {
+                    result = rotatedLeft(result);
+                }
+            } else if (rotatedRightAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
+                result = rotatedRight(result);
+            } else {
+                return result;
+            }
+
+            bestAbsoluteBalanceFactor = result.absoluteBalanceFactor();
+        }
+    }private static Node shallowlyPruned(Node n) {
         if (n.itemCount() == 0) {
-            return n;
+            return EMPTY_LEAF;
         } else if (n instanceof Structure s) {
             if (s.left.itemCount() == 0) {
-                return pruned(s.right);
+                return s.right;
             } else if (s.right.itemCount() == 0) {
-                return pruned(s.left);
+                return s.left;
             } else {
                 return s;
             }
         } else {
             return n;
+        }
+    }
+
+    private static int rotatedLeftBalanceFactor(Node root) {
+        if (root instanceof Structure s) {
+            if (s.right instanceof Structure right_s) {
+                // balanceFactor == right.weight - left.weight;
+                // weight = left.weight + right.weight + 1    (the 1 is the weight of node itself)
+
+                return right_s.right.weight() - (s.left.weight() + right_s.left.weight() + 1);
+//                return new Structure(new Structure(s.left, right_s.left), right_s.right); from rotatedLeft(Node n)
+            } else {
+                return s.balanceFactor();
+            }
+        } else {
+            return root.balanceFactor();
+        }
+    }
+
+    private static int rotatedRightBalanceFactor(Node root) {
+        if (root instanceof Structure s) {
+            if (s.left instanceof Structure left_s) {
+                // balanceFactor == right.weight - left.weight;
+                // weight = left.weight + right.weight + 1    (the 1 is the weight of node itself)
+                return (left_s.right.weight() + s.right.weight() + 1) - left_s.left.weight();
+
+//                return new Structure(left_s.left, new Structure(left_s.right, s.right)); from rotatedRight(Node n)
+            } else {
+                return s.balanceFactor();
+            }
+        } else {
+            return root.balanceFactor();
         }
     }
 
@@ -530,6 +564,10 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
+    private static Node fromPartitions(Object[][] partitions) {
+        return fromPartitions(partitions, 0, partitions.length);
+    }
+
     private static boolean areEqual(Object a, Object b) {
         if (a == null) {
             if (b == null) {
@@ -569,6 +607,8 @@ public class PersistentList<T> implements Iterable<T> {
         int weight();
 
         int balanceFactor();
+
+        int absoluteBalanceFactor();
     }
 
     private static class Structure implements Node {
@@ -591,7 +631,7 @@ public class PersistentList<T> implements Iterable<T> {
 
             this.itemCount = left.itemCount() + right.itemCount();
             this.leafCount = left.leafCount() + right.leafCount();
-            this.weight = left.weight() + right.weight();
+            this.weight = left.weight() + right.weight() + 1;
             this.balanceFactor = right.weight() - left.weight();
         }
 
@@ -621,6 +661,10 @@ public class PersistentList<T> implements Iterable<T> {
 
         public int balanceFactor() {
             return balanceFactor;
+        }
+
+        public int absoluteBalanceFactor() {
+            return Math.abs(balanceFactor);
         }
     }
 
@@ -658,6 +702,10 @@ public class PersistentList<T> implements Iterable<T> {
         }
 
         public int balanceFactor() {
+            return 0;
+        }
+
+        public int absoluteBalanceFactor() {
             return 0;
         }
     }

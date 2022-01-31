@@ -214,14 +214,21 @@ public class Main {
 
         System.out.println(1108378657 * -10000000 * 31 + 1108378657 + -10000000);
 
-
-        final var ms = new MyString().append("phone number: ").append(999999999).append('\n').append("age: ").append(45).append('\n');
-        System.out.println(ms);
-        System.out.println();
-        System.out.println(ms.items());
-
-        for(final var item : ms.items()){
-            System.out.println("" + item + ": " + item.getClass());
+        var addTest = new PersistentList<Integer>();
+        for(int i = 0; i < 300; ++i){
+            addTest = addTest.add(i);
         }
+
+        System.out.println();
+
+
+//        final var ms = new MyString().append("phone number: ").append(999999999).append('\n').append("age: ").append(45).append('\n');
+//        System.out.println(ms);
+//        System.out.println();
+//        System.out.println(ms.items());
+//
+//        for(final var item : ms.items()){
+//            System.out.println("" + item + ": " + item.getClass());
+//        }
     }
 }
