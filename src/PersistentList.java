@@ -178,11 +178,11 @@ public class PersistentList<T> implements Iterable<T> {
 
     // ==================== Internal Modification ========================
     private static Object valueFrom(Node n, int index) {
-        if (n instanceof Structure s) {
-            if (index < s.left.itemCount()) {
-                return valueFrom(s.left, index);
+        if (n instanceof Branch b) {
+            if (index < b.left.itemCount()) {
+                return valueFrom(b.left, index);
             } else {
-                return valueFrom(s.right, index - s.left.itemCount());
+                return valueFrom(b.right, index - b.left.itemCount());
             }
         } else if (n instanceof Leaf l) {
             return l.items[index];
@@ -192,11 +192,11 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node withValueAtIndex(Node n, int index, Object value) {
-        if (n instanceof Structure s) {
-            if (index < s.left.itemCount()) {
-                return new Structure(withValueAtIndex(s.left, index, value), s.right);
+        if (n instanceof Branch b) {
+            if (index < b.left.itemCount()) {
+                return new Branch(withValueAtIndex(b.left, index, value), b.right);
             } else {
-                return new Structure(s.left, withValueAtIndex(s.right, index - s.left.itemCount(), value));
+                return new Branch(b.left, withValueAtIndex(b.right, index - b.left.itemCount(), value));
             }
         } else if (n instanceof Leaf l) {
             final var items = Arrays.copyOf(l.items, l.items.length);
@@ -208,17 +208,17 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node withInsertion(Node n, int index, Object[] values) {
-        if (n instanceof Structure s) {
-            if (index < s.left.itemCount()) {
+        if (n instanceof Branch b) {
+            if (index < b.left.itemCount()) {
                 return shallowlyBalanced(
-                        new Structure(
-                                withInsertion(s.left, index, values),
-                                s.right));
+                        new Branch(
+                                withInsertion(b.left, index, values),
+                                b.right));
             } else {
                 return shallowlyBalanced(
-                        new Structure(
-                                s.left,
-                                withInsertion(s.right, index - s.left.itemCount(), values)));
+                        new Branch(
+                                b.left,
+                                withInsertion(b.right, index - b.left.itemCount(), values)));
             }
         } else if (n instanceof Leaf l) {
             final var items = withInsertion(l.items, index, values);
@@ -238,27 +238,27 @@ public class PersistentList<T> implements Iterable<T> {
         if (start == 0 && end == n.itemCount()) return EMPTY_LEAF;
         if (start == end) return n;
 
-        if (n instanceof Structure s) {
-            if (start < s.left.itemCount()) {
-                if (end > s.left.itemCount()) {
+        if (n instanceof Branch b) {
+            if (start < b.left.itemCount()) {
+                if (end > b.left.itemCount()) {
                     return shallowlyBalanced(
-                            shallowlyPruned(new Structure(
-                                    withoutRange(s.left, start, s.left.itemCount()),
-                                    withoutRange(s.right, 0, end - s.left.itemCount()))));
+                            shallowlyPruned(new Branch(
+                                    withoutRange(b.left, start, b.left.itemCount()),
+                                    withoutRange(b.right, 0, end - b.left.itemCount()))));
                 } else {
                     return shallowlyBalanced(
-                            shallowlyPruned(new Structure(
-                                    withoutRange(s.left, start, end),
-                                    s.right)));
+                            shallowlyPruned(new Branch(
+                                    withoutRange(b.left, start, end),
+                                    b.right)));
                 }
             } else {
                 return shallowlyBalanced(
-                        shallowlyPruned(new Structure(
-                                s.left,
+                        shallowlyPruned(new Branch(
+                                b.left,
                                 withoutRange(
-                                        s.right,
-                                        start - s.left.itemCount(),
-                                        end - s.left.itemCount()))));
+                                        b.right,
+                                        start - b.left.itemCount(),
+                                        end - b.left.itemCount()))));
             }
         } else if (n instanceof Leaf l) {
             final var items = withoutRange(l.items, start, end - start);
@@ -270,26 +270,26 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node subListFrom(Node n, int start, int end) {
-        if (n instanceof Structure s) {
-            if (start < s.left.itemCount()) {
-                if (end > s.left.itemCount()) {
+        if (n instanceof Branch b) {
+            if (start < b.left.itemCount()) {
+                if (end > b.left.itemCount()) {
                     return shallowlyBalanced(
-                            shallowlyPruned(new Structure(
-                                    subListFrom(s.left, start, s.left.itemCount()),
-                                    subListFrom(s.right, 0, end - s.left.itemCount()))));
+                            shallowlyPruned(new Branch(
+                                    subListFrom(b.left, start, b.left.itemCount()),
+                                    subListFrom(b.right, 0, end - b.left.itemCount()))));
                 } else {
                     return shallowlyBalanced(
-                            shallowlyPruned(new Structure(
-                                    subListFrom(s.left, start, end),
+                            shallowlyPruned(new Branch(
+                                    subListFrom(b.left, start, end),
                                     EMPTY_LEAF)));
                 }
             } else {
                 return shallowlyBalanced(shallowlyPruned(
-                        new Structure(
+                        new Branch(
                                 EMPTY_LEAF,
-                                subListFrom(s.right,
-                                        start - s.left.itemCount(),
-                                        end - s.left.itemCount()))));
+                                subListFrom(b.right,
+                                        start - b.left.itemCount(),
+                                        end - b.left.itemCount()))));
             }
         } else if (n instanceof Leaf l) {
             if (start == 0 && end == l.items.length) return l;
@@ -331,13 +331,13 @@ public class PersistentList<T> implements Iterable<T> {
     }private static Node shallowlyPruned(Node n) {
         if (n.itemCount() == 0) {
             return EMPTY_LEAF;
-        } else if (n instanceof Structure s) {
-            if (s.left.itemCount() == 0) {
-                return s.right;
-            } else if (s.right.itemCount() == 0) {
-                return s.left;
+        } else if (n instanceof Branch b) {
+            if (b.left.itemCount() == 0) {
+                return b.right;
+            } else if (b.right.itemCount() == 0) {
+                return b.left;
             } else {
-                return s;
+                return b;
             }
         } else {
             return n;
@@ -345,15 +345,15 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static int rotatedLeftBalanceFactor(Node root) {
-        if (root instanceof Structure s) {
-            if (s.right instanceof Structure right_s) {
+        if (root instanceof Branch b) {
+            if (b.right instanceof Branch right_b) {
                 // balanceFactor == right.weight - left.weight;
                 // weight = left.weight + right.weight + 1    (the 1 is the weight of node itself)
 
-                return right_s.right.weight() - (s.left.weight() + right_s.left.weight() + 1);
-//                return new Structure(new Structure(s.left, right_s.left), right_s.right); from rotatedLeft(Node n)
+                return right_b.right.weight() - (b.left.weight() + right_b.left.weight() + 1);
+//                return new Structure(new Structure(b.left, right_b.left), right_b.right); from rotatedLeft(Node n)
             } else {
-                return s.balanceFactor();
+                return b.balanceFactor();
             }
         } else {
             return root.balanceFactor();
@@ -361,15 +361,15 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static int rotatedRightBalanceFactor(Node root) {
-        if (root instanceof Structure s) {
-            if (s.left instanceof Structure left_s) {
+        if (root instanceof Branch b) {
+            if (b.left instanceof Branch left_b) {
                 // balanceFactor == right.weight - left.weight;
                 // weight = left.weight + right.weight + 1    (the 1 is the weight of node itself)
-                return (left_s.right.weight() + s.right.weight() + 1) - left_s.left.weight();
+                return (left_b.right.weight() + b.right.weight() + 1) - left_b.left.weight();
 
-//                return new Structure(left_s.left, new Structure(left_s.right, s.right)); from rotatedRight(Node n)
+//                return new Structure(left_b.left, new Structure(left_b.right, b.right)); from rotatedRight(Node n)
             } else {
-                return s.balanceFactor();
+                return b.balanceFactor();
             }
         } else {
             return root.balanceFactor();
@@ -377,11 +377,11 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node rotatedLeft(Node root) {
-        if (root instanceof Structure s) {
-            if (s.right instanceof Structure right_s) {
-                return new Structure(new Structure(s.left, right_s.left), right_s.right);
+        if (root instanceof Branch b) {
+            if (b.right instanceof Branch right_b) {
+                return new Branch(new Branch(b.left, right_b.left), right_b.right);
             } else {
-                return s;
+                return b;
             }
         } else {
             return root;
@@ -389,11 +389,11 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node rotatedRight(Node root) {
-        if (root instanceof Structure s) {
-            if (s.left instanceof Structure left_s) {
-                return new Structure(left_s.left, new Structure(left_s.right, s.right));
+        if (root instanceof Branch b) {
+            if (b.left instanceof Branch left_b) {
+                return new Branch(left_b.left, new Branch(left_b.right, b.right));
             } else {
-                return s;
+                return b;
             }
         } else {
             return root;
@@ -558,7 +558,7 @@ public class PersistentList<T> implements Iterable<T> {
             final var leftCount = (count / 2) + (remainder > 0 ? 1 : 0);
             final var rightCount = count / 2;
 
-            return new Structure(
+            return new Branch(
                     fromPartitions(partitions, index, leftCount),
                     fromPartitions(partitions, index + leftCount, rightCount));
         }
@@ -611,7 +611,7 @@ public class PersistentList<T> implements Iterable<T> {
         int absoluteBalanceFactor();
     }
 
-    private static class Structure implements Node {
+    private static class Branch implements Node {
         public final Node left;
         public final Node right;
         public final int itemCount;
@@ -621,7 +621,7 @@ public class PersistentList<T> implements Iterable<T> {
         private final int weight;
         private final int balanceFactor;
 
-        public Structure(Node left, Node right) {
+        public Branch(Node left, Node right) {
             nullCheck(left);
             nullCheck(right);
 
@@ -816,13 +816,13 @@ public class PersistentList<T> implements Iterable<T> {
             Node child = location.pop();
             Node parent = location.peek();
 
-            while (child == ((Structure) parent).right) {
+            while (child == ((Branch) parent).right) {
                 child = parent;
                 location.pop();
                 parent = location.peek();
             }
 
-            location.push(((Structure) parent).right);
+            location.push(((Branch) parent).right);
 
             moveDownToLeaf();
         }
@@ -831,8 +831,8 @@ public class PersistentList<T> implements Iterable<T> {
         private void moveDownToLeaf() {
             Node current = location.peek();
 
-            while (current instanceof Structure s) {
-                location.push(current = s.left);
+            while (current instanceof Branch b) {
+                location.push(current = b.left);
             }
         }
 
