@@ -1,7 +1,7 @@
 import java.util.*;
 
 // TODO add node iterator
-// TODO improve balancing algorithm (currently retro-fitting the balancing algorithm from an avl tree. It kinda works a little I think. For all I know it makes things worse).
+
 
 public class PersistentList<T> implements Iterable<T> {
     private static final int LEAF_ITEM_LIMIT = 32;
