@@ -48,33 +48,24 @@ public class PersistentList<T> implements Iterable<T> {
     @Override
     public int hashCode() {
         return root.totalQuickHash();
-//        if (hashCache != null) return hashCache;
-//
-//        synchronized (hashCacheLock) {
-//            if (hashCache == null) {
-//                hashCache = hashIterable(this);
-//            }
-//        }
-//
-//        return hashCache;
     }
 
     @Override
     public boolean equals(Object obj) {
-        // If it's the same instance, it's obviously equal.
-        if (this == obj) return true;
+        // check if the object is the right type
         if (obj instanceof PersistentList<?> other) {
-
-            // try quick checks from fastest -> slowest
+            // try quick checks
+            if (this == other) return true; // same instance
             if (root == other.root) return true;
             if (size() != other.size()) return false;
             if (size() == 0 && other.size() == 0) return true;
+
             // check the cache
             final var fromCache = checkEqualityFromCache(other);
             if (fromCache != null) return fromCache;
+
             // Check hashCodes
-            // * HashCodes are cached, so these will be slow the first time but fast subsequent times.
-//            if (root.totalQuickHash() != other.root.totalQuickHash()) return false;
+            // * HashCodes are cached, so this will be slow the first time but fast subsequent times.
             if (hashCode() != other.hashCode()) return false;
 
             // Quick checks failed, full check needed. Result will be cached for later.
@@ -122,8 +113,16 @@ public class PersistentList<T> implements Iterable<T> {
 
     public PersistentList<T> insert(int index, T[] values) {
         indexCheck(index, size() + 1);
+        if (values.length == 0) return this;
 
         return new PersistentList<>(withInsertion(root, index, values));
+    }
+
+    public PersistentList<T> insert(int index, PersistentList<T> values) {
+        indexCheck(index, size() + 1);
+        if (values.size() == 0) return this;
+
+        return new PersistentList<>(withInsertion(root, index, values.root));
     }
 
     public PersistentList<T> add(int index, T value) {
@@ -138,9 +137,12 @@ public class PersistentList<T> implements Iterable<T> {
 
     public PersistentList<T> remove(int index, int length) {
         if (length <= 0) return this;
+
         indexCheck(index, size());
+
         final var end = index + length;
         if (end > size()) throw new IndexOutOfBoundsException(end);
+
         return new PersistentList<>(withoutRange(root, index, end));
     }
 
@@ -161,10 +163,12 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList<T> pull() {
+        if (size() == 0) return this;
         return remove(0);
     }
 
     public PersistentList<T> pop() {
+        if (size() == 0) return this;
         return remove(size() - 1);
     }
 
@@ -229,6 +233,31 @@ public class PersistentList<T> implements Iterable<T> {
                 return fromPartitions(
                         partition(items, LEAF_ITEM_LIMIT));
             }
+        } else {
+            throw new NullPointerException();
+        }
+    }
+
+    private static Node withInsertion(Node n, int index, Node values) {
+        if (n instanceof Branch b) {
+            if (index < b.left.itemCount()) {
+                return shallowlyBalanced(
+                        new Branch(
+                                withInsertion(b.left, index, values),
+                                b.right));
+            } else {
+                return shallowlyBalanced(
+                        new Branch(
+                                b.left,
+                                withInsertion(b.right, index - b.left.itemCount(), values)));
+            }
+        } else if (n instanceof Leaf l) {
+            final var preceding = Arrays.copyOfRange(l.items, 0, index);
+            final var following = Arrays.copyOfRange(l.items, index, l.items.length);
+
+            return withInsertion(
+                    withInsertion(values, values.itemCount(), following),
+                    0, preceding);
         } else {
             throw new NullPointerException();
         }
@@ -328,7 +357,9 @@ public class PersistentList<T> implements Iterable<T> {
 
             bestAbsoluteBalanceFactor = result.absoluteBalanceFactor();
         }
-    }private static Node shallowlyPruned(Node n) {
+    }
+
+    private static Node shallowlyPruned(Node n) {
         if (n.itemCount() == 0) {
             return EMPTY_LEAF;
         } else if (n instanceof Branch b) {
@@ -797,11 +828,10 @@ public class PersistentList<T> implements Iterable<T> {
             ++progress;
             if (location == null) {
                 initializeLocation();
-                return currentLeaf();
             } else {
                 advanceToNextLeaf();
-                return currentLeaf();
             }
+            return currentLeaf();
         }
 
         private Leaf currentLeaf() {
