@@ -7,10 +7,11 @@ public class PersistentList<T> implements Iterable<T> {
     private static final int LEAF_ITEM_LIMIT = 32;
     private static final Leaf EMPTY_LEAF = new Leaf(new Object[0]);
     private static final Object[] EMPTY_ARRAY = new Object[0];
+
     private final Node root;
     private final Map<PersistentList<?>, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
-    private Integer hashCache = null;
-    private final Object hashCacheLock = new Object();
+//    private Integer hashCache = null;
+//    private final Object hashCacheLock = new Object();
 
     private PersistentList(Node root) {
         nullCheck(root);
@@ -46,15 +47,16 @@ public class PersistentList<T> implements Iterable<T> {
 
     @Override
     public int hashCode() {
-        if (hashCache != null) return hashCache;
-
-        synchronized (hashCacheLock) {
-            if (hashCache == null) {
-                hashCache = hashIterable(this);
-            }
-        }
-
-        return hashCache;
+        return root.totalQuickHash();
+//        if (hashCache != null) return hashCache;
+//
+//        synchronized (hashCacheLock) {
+//            if (hashCache == null) {
+//                hashCache = hashIterable(this);
+//            }
+//        }
+//
+//        return hashCache;
     }
 
     @Override
@@ -72,7 +74,7 @@ public class PersistentList<T> implements Iterable<T> {
             if (fromCache != null) return fromCache;
             // Check hashCodes
             // * HashCodes are cached, so these will be slow the first time but fast subsequent times.
-            if (root.totalQuickHash() != other.root.totalQuickHash()) return false;
+//            if (root.totalQuickHash() != other.root.totalQuickHash()) return false;
             if (hashCode() != other.hashCode()) return false;
 
             // Quick checks failed, full check needed. Result will be cached for later.
@@ -149,6 +151,7 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList<T> subList(int start, int length) {
+        if (start == 0 && length == size()) return this;
         if (length <= 0) return new PersistentList<>(EMPTY_LEAF);
         indexCheck(start, size());
         final var end = start + length;
@@ -417,10 +420,15 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     /**
-     * Generates a hash that isn't well distributes but at least doesn't care about order.
+     * Generates a hash that isn't well distributed but at least doesn't care about order.
      */
     public static int quickHash(Object a, Object b) {
+//        return hashCodeOf(a) + hashCodeOf(b);
         return hashCodeOf(a) ^ hashCodeOf(b);
+//        return 31 * hashCodeOf(a) + 31 * hashCodeOf(b);
+//        final var hashA = hashCodeOf(a);
+//        final var hashB = hashCodeOf(b);
+//        return hashA * hashB * 31 + hashA + hashB; // breaks with lots of values
     }
 
     /**

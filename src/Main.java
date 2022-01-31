@@ -1,3 +1,4 @@
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -200,8 +201,27 @@ public class Main {
         final var copypl1to100 = pl1to1000.subList(0, 100);
         System.out.println("true: " + pl1to100.equals(copypl1to100));
         System.out.println("true: " + pl1to100.equals(copypl1to100));
+
+        final var pl1to102 = pl1to100.add(101).add(102);
+        pl1to102.hashCode();
+
+        System.out.println(pl1to1000.hashCode());
+        System.out.println(pl1to1000000.subList(0, 1000).hashCode());
+        System.out.println(pl1to100.hashCode());
+        System.out.println(pl1to102.hashCode());
+        System.out.println(pl1to1000000.subList(0, 120 - 1).add(-10000000).hashCode());
         System.out.println();
 
+        System.out.println(1108378657 * -10000000 * 31 + 1108378657 + -10000000);
 
+
+        final var ms = new MyString().append("phone number: ").append(999999999).append('\n').append("age: ").append(45).append('\n');
+        System.out.println(ms);
+        System.out.println();
+        System.out.println(ms.items());
+
+        for(final var item : ms.items()){
+            System.out.println("" + item + ": " + item.getClass());
+        }
     }
 }
