@@ -1,6 +1,8 @@
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Random;
 
 class AllTheSame {
     @Override
@@ -213,14 +215,102 @@ public class Main {
         System.out.println();
 
         System.out.println(1108378657 * -10000000 * 31 + 1108378657 + -10000000);
+        System.out.println(pl0to9.insert(3, pl1to1000000.subList(0, 3)));
 
-        var addTest = new PersistentList<Integer>();
-        for(int i = 0; i < 300; ++i){
-            addTest = addTest.add(i);
+        final var alTimes = new ArrayList<Double>();
+        final var plTimes = new ArrayList<Double>();
+        final var iterations = 10;
+        final var count = 100_000;
+
+        for (int j = 0; j < iterations; ++j) {
+            System.out.println("iteration " + j + " / " + iterations + "...");
+            final var alAddTest = new ArrayList<Integer>();
+            var plAddTest = new PersistentList<Object>();
+
+            final var alStartTime = System.currentTimeMillis();
+            for (int i = 0; i < count; ++i) {
+                alAddTest.add(i);
+            }
+            final var alEndTime = System.currentTimeMillis();
+            alTimes.add((double) (alEndTime - alStartTime));
+
+            final var plStartTime = System.currentTimeMillis();
+            plAddTest = plAddTest.insert(0, alAddTest.toArray());
+//            for (int i = 0; i < count; ++i) {
+//                plAddTest = plAddTest.add(i);
+//            }
+            final var plEndTime = System.currentTimeMillis();
+            plTimes.add((double) (plEndTime - plStartTime));
+
+            if (j == iterations - 1)
+                System.out.println(plAddTest);
         }
 
-        System.out.println();
 
+        System.out.println("p-list time:" + average(plTimes));
+        System.out.println("a-list time:" + average(alTimes));
+
+        final var randomList = new PersistentList<>(getRandomArray(5, 10));
+        final var sortedList = randomList.sorted((a, b) -> a - b);
+        System.out.println(randomList);
+        System.out.println(sortedList);
+
+        final var big = 10_000_000;
+        final var bigRandomArray = getRandomArray(big, null);
+        final var bigSortedArray = getSortedArray(big);
+        final var bigAlmostSortedArray = getSortedArray(big);
+        for (int i = 0; i < big / 10_000; ++i)
+            bigAlmostSortedArray[rand.nextInt(big)] = i;
+
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+        bigAlmostSortedArray[rand.nextInt(big)] = 9;
+
+        final var bigRandomList = new PersistentList<>(bigRandomArray);
+        final var bigSortedList = new PersistentList<>(bigSortedArray);
+        final var bigAlmostSortedList = new PersistentList<>(bigAlmostSortedArray);
+
+        var startTime = System.currentTimeMillis();
+        bigRandomList.sorted(Comparator.comparingInt(a -> a));
+        var endTime = System.currentTimeMillis();
+
+        System.out.println("PL Sorting Time: " + (endTime - startTime));
+
+        final var randArr = Arrays.copyOf(bigRandomArray, bigRandomArray.length);
+        startTime = System.currentTimeMillis();
+        Arrays.sort(randArr);
+        endTime = System.currentTimeMillis();
+        System.out.println("AR Sorting Time: " + (endTime - startTime));
+
+
+        startTime = System.currentTimeMillis();
+        bigSortedList.sorted(Comparator.comparingInt(a -> a));
+        endTime = System.currentTimeMillis();
+        System.out.println("PL already sorted time: " + (endTime - startTime));
+
+        final var sortedArr = Arrays.copyOf(bigSortedArray, bigSortedArray.length);
+        startTime = System.currentTimeMillis();
+        Arrays.sort(sortedArr);
+        endTime = System.currentTimeMillis();
+        System.out.println("AR already sorted time: " + (endTime - startTime));
+
+        startTime = System.currentTimeMillis();
+        bigAlmostSortedList.sorted(Comparator.comparingInt(a -> a));
+        endTime = System.currentTimeMillis();
+        System.out.println("PL almost already sorted time: " + (endTime - startTime));
+
+        final var almostSortedArr = Arrays.copyOf(bigAlmostSortedArray, bigAlmostSortedArray.length);
+        startTime = System.currentTimeMillis();
+        Arrays.sort(almostSortedArr);
+        endTime = System.currentTimeMillis();
+        System.out.println("AR almost already sorted time: " + (endTime - startTime));
+
+        System.out.println();
 
 //        final var ms = new MyString().append("phone number: ").append(999999999).append('\n').append("age: ").append(45).append('\n');
 //        System.out.println(ms);
@@ -230,5 +320,35 @@ public class Main {
 //        for(final var item : ms.items()){
 //            System.out.println("" + item + ": " + item.getClass());
 //        }
+    }
+
+    private static double average(Iterable<Double> numbers) {
+        double result = 0.0;
+        int count = 0;
+        for (final var num : numbers) {
+            ++count;
+            result += num;
+        }
+        result /= count;
+        return result;
+    }
+
+    private static Random rand = new Random();
+
+    private static Integer[] getRandomArray(int size, Integer numSize) {
+        final var result = new Integer[size];
+        for (int i = 0; i < size; ++i)
+            result[i] = numSize == null ? rand.nextInt() : rand.nextInt(numSize);
+        return result;
+    }
+
+    private static Integer[] getSortedArray(int size) {
+        final var result = new Integer[size];
+
+        for (int i = 0; i < size; ++i) {
+            result[i] = i;
+        }
+
+        return result;
     }
 }
