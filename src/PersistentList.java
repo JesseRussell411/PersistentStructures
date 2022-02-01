@@ -1,3 +1,4 @@
+import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.stream.StreamSupport;
 
@@ -5,6 +6,7 @@ import java.util.stream.StreamSupport;
 // TODO default Comparator
 // TODO default sort
 // TODO default isSorted status with cache
+// FOR NEXT TIME build in clever reverse mechanism
 
 
 public class PersistentList<T> implements Iterable<T> {
@@ -18,6 +20,8 @@ public class PersistentList<T> implements Iterable<T> {
      * stores the root nodes of known equal or non-equal PersistentLists. It stores the root nodes because the equality of Node is identity based, not value based.
      */
     private final Map<Node, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
+    private volatile WeakReference<Node> reverseCache = new WeakReference<>(null);
+    private final Object reverseCacheLock = new Object();
 
     private volatile Integer hashCache = null;
     private final Object hashCacheLock = new Object();
@@ -29,6 +33,10 @@ public class PersistentList<T> implements Iterable<T> {
 
     public PersistentList(T[] initialValue) {
         this(fromArray(initialValue));
+    }
+
+    public PersistentList(List<T> initialValue){
+        this(fromArray(initialValue.toArray()));
     }
 
     public PersistentList(Iterable<T> initialValue) {
@@ -86,7 +94,7 @@ public class PersistentList<T> implements Iterable<T> {
             if (root == other.root) return true;
             if (size() != other.size()) return false;
             if (size() == 0 && other.size() == 0) {
-                consolidateInnards(this, other);
+                consolidateInnards(other);
                 return true;
             }
 
@@ -94,7 +102,7 @@ public class PersistentList<T> implements Iterable<T> {
             final var fromCache = checkEqualityFromCache(other);
             if (fromCache != null) {
                 if (fromCache) {
-                    consolidateInnards(this, other);
+                    consolidateInnards(other);
                     return true;
                 } else {
                     return false;
@@ -109,7 +117,7 @@ public class PersistentList<T> implements Iterable<T> {
             if (nodesAreEqual(root, other.root)) {
                 // add to cache
                 storeEqualityInCache(other, true);
-                consolidateInnards(this, other);
+                consolidateInnards(other);
 
                 return true;
             } else {
@@ -137,26 +145,33 @@ public class PersistentList<T> implements Iterable<T> {
         equalityCache.put(other.root, equality);
     }
 
-    /**
-     * ~ (!!! should only be called if a.equals(b) !!!) ~
-     */
-    private static void consolidateInnards(PersistentList<?> a, PersistentList<?> b) {
-        assert areEqual(a, b);
-        if (a.root != b.root) {
-            if (a.root instanceof Branch ab && ab.quickHashCache != null) {
-                b.root = a.root;
+    /** ~ (!!! should only be called if a.equals(b) !!!) ~ */
+    private void consolidateInnards(PersistentList<?> other) {
+        assert areEqual(this, other);
+        if (root != other.root) {
+            if (root instanceof Branch ab && ab.quickHashCache != null) {
+                other.root = root;
             } else {
-                a.root = b.root;
+                root = other.root;
             }
         }
 
-        if (a.hashCache == null && b.hashCache != null) {
-            a.hashCache = b.hashCache;
-        } else if (a.hashCache != null && b.hashCache == null) {
-            b.hashCache = a.hashCache;
+        if (hashCache == null) {
+            if (other.hashCache != null) {
+                hashCache = other.hashCache;
+            }
+        } else if (other.hashCache == null) {
+            other.hashCache = hashCache;
         }
 
-
+        // TODO fix cache loss problem, you know what I'm talking about, assuming you are me, if not, you problem don't know what I'm talking about.
+        if (reverseCache.get() == null) {
+            if (reverseCache.get() != null) {
+                reverseCache = other.reverseCache;
+            }
+        } else if (other.reverseCache.get() == null) {
+            other.reverseCache = reverseCache;
+        }
     }
 
     public Iterator<T> iterator() {
@@ -285,7 +300,15 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList<T> put(T value) {
-        return add(size(), value);
+        return add(value);
+    }
+
+    public T start() {
+        return get(0);
+    }
+
+    public T end() {
+        return get(size() - 1);
     }
 
 
@@ -314,7 +337,7 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    public PersistentList<T> sorted(Comparator<T> comparator) {
+    public PersistentList<T> sort(Comparator<T> comparator) {
         return new PersistentList<>(sorted(
                 root,
                 (a, b) -> comparator.compare((T) a, (T) b)));
@@ -324,10 +347,22 @@ public class PersistentList<T> implements Iterable<T> {
         return isSorted(this, comparator);
     }
 
-    public PersistentList<T> reversed() {
-        final var reversedItems = toList().toArray();
-        reverse(reversedItems);
-        return new PersistentList<>(fromArray(reversedItems));
+    public PersistentList<T> reverse() {
+        var cached = reverseCache.get();
+        if (cached != null) return new PersistentList<>(cached);
+
+        synchronized (reverseCacheLock) {
+            cached = reverseCache.get();
+            if (cached == null) {
+                cached = fromArray(reversed(toArray()));
+                reverseCache = new WeakReference<>(cached);
+            }
+        }
+
+        final var result = new PersistentList<T>(cached);
+        result.reverseCache = new WeakReference<>(root);
+
+        return result;
     }
 
     public List<T> toList() {
@@ -335,6 +370,17 @@ public class PersistentList<T> implements Iterable<T> {
 
         for (final var item : this) {
             result.add(item);
+        }
+
+        return result;
+    }
+
+    public Object[] toArray() {
+        final var result = new Object[size()];
+
+        int index = 0;
+        for (final var item : this) {
+            result[index++] = item;
         }
 
         return result;
@@ -650,6 +696,7 @@ public class PersistentList<T> implements Iterable<T> {
 
     private static Node sorted(Node n, Comparator<Object> comparator) {
         if (n instanceof Leaf l) {
+            if (l.items.length == 0) return EMPTY_LEAF;
             if (isSorted(l.items, comparator)) return l;
 
             final var sortedItems = Arrays.copyOf(l.items, l.items.length);
@@ -663,6 +710,8 @@ public class PersistentList<T> implements Iterable<T> {
             // sort the branches
             final var leftSorted = shallowlyPrunedAndBalanced(sorted(b.left, comparator));
             final var rightSorted = shallowlyPrunedAndBalanced(sorted(b.right, comparator));
+//            final var leftSorted = sorted(b.left, comparator);
+//            final var rightSorted = sorted(b.right, comparator);
 
             // skip merging if possible
             if (leftSorted.itemCount() == 0) {
@@ -929,6 +978,14 @@ public class PersistentList<T> implements Iterable<T> {
             array[i] = array[array.length - 1 - i];
             array[array.length - 1 - i] = temp;
         }
+    }
+
+    private static Object[] reversed(Object[] array) {
+        final var result = new Object[array.length];
+        for (int i = 0; i < array.length; ++i) {
+            result[result.length - 1 - i] = array[i];
+        }
+        return result;
     }
 
     // ======================== Inner Classes ===============================
