@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.stream.StreamSupport;
 
 // TODO node iterator
 // TODO default Comparator
@@ -18,7 +19,7 @@ public class PersistentList<T> implements Iterable<T> {
      */
     private final Map<Node, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
 
-    private Integer hashCache = null;
+    private volatile Integer hashCache = null;
     private final Object hashCacheLock = new Object();
 
     private PersistentList(Node root) {
@@ -27,7 +28,11 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList(T[] initialValue) {
-        this(withInsertion(EMPTY_LEAF, 0, initialValue));
+        this(fromArray(initialValue));
+    }
+
+    public PersistentList(Iterable<T> initialValue) {
+        this(fromArray(StreamSupport.stream(initialValue.spliterator(), false).toArray()));
     }
 
     public PersistentList() {
@@ -97,7 +102,7 @@ public class PersistentList<T> implements Iterable<T> {
             }
 
             // Check hashCodes
-            if (root.totalQuickHash() != other.root.totalQuickHash()) return false;
+            if (root.quickHash() != other.root.quickHash()) return false;
             if (hashCode() != other.hashCode()) return false;
 
             // Quick checks failed, full check needed. Result will be cached for later.
@@ -138,7 +143,7 @@ public class PersistentList<T> implements Iterable<T> {
     private static void consolidateInnards(PersistentList<?> a, PersistentList<?> b) {
         assert areEqual(a, b);
         if (a.root != b.root) {
-            if (a.root instanceof Branch ab && ab.totalQuickHashCache != null) {
+            if (a.root instanceof Branch ab && ab.quickHashCache != null) {
                 b.root = a.root;
             } else {
                 a.root = b.root;
@@ -147,9 +152,7 @@ public class PersistentList<T> implements Iterable<T> {
 
         if (a.hashCache == null && b.hashCache != null) {
             a.hashCache = b.hashCache;
-        }
-
-        if (a.hashCache != null && b.hashCache == null) {
+        } else if (a.hashCache != null && b.hashCache == null) {
             b.hashCache = a.hashCache;
         }
 
@@ -303,15 +306,28 @@ public class PersistentList<T> implements Iterable<T> {
         final var remainder = times % BREAK_FACTOR;
 
         final var repeatedByFactor = this.repeat(factor);
-        final var repeatedByRemainder = this.repeat(remainder);
 
-        return repeatedByFactor.repeat(BREAK_FACTOR).concat(repeatedByRemainder);
+        if (remainder == 0) {
+            return repeatedByFactor.repeat(BREAK_FACTOR);
+        } else {
+            return repeatedByFactor.repeat(BREAK_FACTOR).concat(this.repeat(remainder));
+        }
     }
 
     public PersistentList<T> sorted(Comparator<T> comparator) {
         return new PersistentList<>(sorted(
                 root,
                 (a, b) -> comparator.compare((T) a, (T) b)));
+    }
+
+    public boolean isSorted(Comparator<T> comparator) {
+        return isSorted(this, comparator);
+    }
+
+    public PersistentList<T> reversed() {
+        final var reversedItems = toList().toArray();
+        reverse(reversedItems);
+        return new PersistentList<>(fromArray(reversedItems));
     }
 
     public List<T> toList() {
@@ -591,7 +607,7 @@ public class PersistentList<T> implements Iterable<T> {
         if (a == b) return true;
         if (a.itemCount() != b.itemCount()) return false;
         if (a.itemCount() == 0 && b.itemCount() == 0) return true;
-        if (a.totalQuickHash() != b.totalQuickHash()) return false;
+        if (a.quickHash() != b.quickHash()) return false;
 
         return fullCheckValueEquality(a, b);
 
@@ -632,17 +648,21 @@ public class PersistentList<T> implements Iterable<T> {
         return !(itemIteratorA.hasNext() || itemIteratorB.hasNext());
     }
 
-    private static Node sorted(Node n, Comparator<Object> comparison) {
+    private static Node sorted(Node n, Comparator<Object> comparator) {
         if (n instanceof Leaf l) {
-            if (isSorted(l.items, comparison)) return l;
+            if (isSorted(l.items, comparator)) return l;
 
-            return new Leaf(Arrays.stream(l.items).sorted(comparison).toArray());
+            final var sortedItems = Arrays.copyOf(l.items, l.items.length);
+            Arrays.sort(sortedItems, comparator);
+            return new Leaf(sortedItems);
+
+//            return new Leaf(Arrays.stream(l.items).sorted(comparator).toArray());
         } else if (n instanceof Branch b) {
-            if (isSorted(new ItemsIterable(b), comparison)) return b;
+            if (isSorted(new ItemsIterable(b), comparator)) return b;
 
             // sort the branches
-            final var leftSorted = shallowlyPrunedAndBalanced(sorted(b.left, comparison));
-            final var rightSorted = shallowlyPrunedAndBalanced(sorted(b.right, comparison));
+            final var leftSorted = shallowlyPrunedAndBalanced(sorted(b.left, comparator));
+            final var rightSorted = shallowlyPrunedAndBalanced(sorted(b.right, comparator));
 
             // skip merging if possible
             if (leftSorted.itemCount() == 0) {
@@ -652,7 +672,7 @@ public class PersistentList<T> implements Iterable<T> {
             }
 
             // skip merging if possible
-            if (comparison.compare(
+            if (comparator.compare(
                     valueFrom(leftSorted, leftSorted.itemCount() - 1),
                     valueFrom(rightSorted, 0)) < 0) {
                 return new Branch(leftSorted, rightSorted);
@@ -662,7 +682,7 @@ public class PersistentList<T> implements Iterable<T> {
             final var sortedItems = merged(
                     new ItemsIterable(leftSorted),
                     new ItemsIterable(rightSorted),
-                    comparison);
+                    comparator);
 
             // partition the resulting items
             if (sortedItems.length <= LEAF_ITEM_LIMIT) {
@@ -702,7 +722,7 @@ public class PersistentList<T> implements Iterable<T> {
     /**
      * Generates a hash that isn't well distributed but at least doesn't care about order.
      */
-    public static int quickHash(Object a, Object b) {
+    public static int nonOrderedHash(Object a, Object b) {
 //        return hashCodeOf(a) + hashCodeOf(b);
         return hashCodeOf(a) ^ hashCodeOf(b);
 //        return 31 * hashCodeOf(a) + 31 * hashCodeOf(b);
@@ -714,10 +734,10 @@ public class PersistentList<T> implements Iterable<T> {
     /**
      * Generates a hash that isn't well distributes but at least doesn't care about order.
      */
-    public static int quickHash(Object[] objects) {
+    public static int nonOrderedHash(Object[] objects) {
         int result = 0;
         for (final var obj : objects) {
-            result = quickHash(result, obj);
+            result = nonOrderedHash(result, obj);
         }
 
         return result;
@@ -817,6 +837,19 @@ public class PersistentList<T> implements Iterable<T> {
         return fromPartitions(partitions, 0, partitions.length);
     }
 
+    private static Node fromArray(Object[] array) {
+        if (array.length <= LEAF_ITEM_LIMIT) {
+            return new Leaf(array);
+        } else {
+            return fromPartitions(
+                    partition(array, LEAF_ITEM_LIMIT));
+        }
+    }
+
+    private static Node fromIterable(Iterable<Object> iterable) {
+        return fromArray(StreamSupport.stream(iterable.spliterator(), false).toArray());
+    }
+
     private static boolean areEqual(Object a, Object b) {
         if (a == null) {
             return b == null;
@@ -829,16 +862,16 @@ public class PersistentList<T> implements Iterable<T> {
      * ~ (!!! only call if a's items are equal to b's items !!!) ~
      */
     private static void consolidateCaches(Branch a, Branch b) {
-        if (a.totalQuickHashCache == null) {
-            if (b.totalQuickHashCache != null) {
-                a.totalQuickHashCache = b.totalQuickHashCache;
+        if (a.quickHashCache == null) {
+            if (b.quickHashCache != null) {
+                a.quickHashCache = b.quickHashCache;
             }
         } else {
-            b.totalQuickHashCache = a.totalQuickHashCache;
+            b.quickHashCache = a.quickHashCache;
         }
     }
 
-    private static Object[] merged(Iterable<Object> a, Iterable<Object> b, Comparator<Object> comparison) {
+    private static Object[] merged(Iterable<Object> a, Iterable<Object> b, Comparator<Object> comparator) {
         final var enuA = new Enumerator<>(a.iterator());
         final var enuB = new Enumerator<>(b.iterator());
         final var result = new ArrayList<>();
@@ -847,7 +880,7 @@ public class PersistentList<T> implements Iterable<T> {
         enuB.moveNext();
 
         while (!enuA.complete() && !enuB.complete()) {
-            if (comparison.compare(enuA.current(), enuB.current()) < 0) {
+            if (comparator.compare(enuA.current(), enuB.current()) < 0) {
                 result.add(enuA.current());
                 enuA.moveNext();
             } else {
@@ -869,14 +902,14 @@ public class PersistentList<T> implements Iterable<T> {
         return result.toArray();
     }
 
-    private static boolean isSorted(Object[] array, Comparator<Object> comp) {
+    private static boolean isSorted(Object[] array, Comparator<Object> comparator) {
         for (int i = 1; i < array.length; ++i) {
-            if (comp.compare(array[i - 1], array[i]) > 0) return false;
+            if (comparator.compare(array[i - 1], array[i]) > 0) return false;
         }
         return true;
     }
 
-    private static <T> boolean isSorted(Iterable<T> items, Comparator<T> comp) {
+    private static <T> boolean isSorted(Iterable<T> items, Comparator<T> comparator) {
         final var iter = items.iterator();
 
         if (!iter.hasNext()) return true;
@@ -884,10 +917,18 @@ public class PersistentList<T> implements Iterable<T> {
         var prev = iter.next();
 
         while (iter.hasNext()) {
-            if (comp.compare(prev, prev = iter.next()) > 0) return false;
+            if (comparator.compare(prev, prev = iter.next()) > 0) return false;
         }
 
         return true;
+    }
+
+    private static <T> void reverse(T[] array) {
+        for (int i = 0; i < array.length / 2; ++i) {
+            final var temp = array[i];
+            array[i] = array[array.length - 1 - i];
+            array[array.length - 1 - i] = temp;
+        }
     }
 
     // ======================== Inner Classes ===============================
@@ -924,7 +965,7 @@ public class PersistentList<T> implements Iterable<T> {
 
         int itemCount();
 
-        int totalQuickHash();
+        int quickHash();
 
         int weight();
 
@@ -934,14 +975,12 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static class Branch implements Node {
-        public final Node left;
-        public final Node right;
-        public final int itemCount;
-        public final int leafCount;
-        private Integer totalQuickHashCache = null;
-        private final Object totalQuickHashCacheLock = new Object();
-        private final int weight;
-        private final int balanceFactor;
+        final Node left;
+        final Node right;
+        final int itemCount;
+        final int leafCount;
+        final int weight;
+        volatile Integer quickHashCache = null;
 
         public Branch(Node left, Node right) {
             nullCheck(left);
@@ -954,7 +993,6 @@ public class PersistentList<T> implements Iterable<T> {
             this.itemCount = left.itemCount() + right.itemCount();
             this.leafCount = left.leafCount() + right.leafCount();
             this.weight = left.weight() + right.weight() + 1;
-            this.balanceFactor = right.weight() - left.weight();
         }
 
         public int leafCount() {
@@ -965,16 +1003,16 @@ public class PersistentList<T> implements Iterable<T> {
             return itemCount;
         }
 
-        public int totalQuickHash() {
-            if (totalQuickHashCache != null) return totalQuickHashCache;
+        public int quickHash() {
+            if (quickHashCache != null) return quickHashCache;
 
-            synchronized (totalQuickHashCacheLock) {
-                if (totalQuickHashCache == null) {
-                    totalQuickHashCache = quickHash(left.totalQuickHash(), right.totalQuickHash());
+            synchronized (this) {
+                if (quickHashCache == null) {
+                    quickHashCache = nonOrderedHash(left.quickHash(), right.quickHash());
                 }
             }
 
-            return totalQuickHashCache;
+            return quickHashCache;
         }
 
         public int weight() {
@@ -982,33 +1020,32 @@ public class PersistentList<T> implements Iterable<T> {
         }
 
         public int balanceFactor() {
-            return balanceFactor;
+            return right.weight() - left.weight();
         }
 
         public int absoluteBalanceFactor() {
-            return Math.abs(balanceFactor);
+            return Math.abs(balanceFactor());
         }
     }
 
     private static class Leaf implements Node {
-        public final Object[] items;
-        private Integer totalQuickHashCache = null;
-        private final Object totalQuickHashCacheLock = new Object();
+        final Object[] items;
+        volatile Integer quickHashCache = null;
 
         public Leaf(Object[] items) {
             this.items = items == null ? new Object[0] : items;
         }
 
-        public int totalQuickHash() {
-            if (totalQuickHashCache != null) return totalQuickHashCache;
+        public int quickHash() {
+            if (quickHashCache != null) return quickHashCache;
 
-            synchronized (totalQuickHashCacheLock) {
-                if (totalQuickHashCache == null) {
-                    totalQuickHashCache = quickHash(items);
+            synchronized (this) {
+                if (quickHashCache == null) {
+                    quickHashCache = nonOrderedHash(items);
                 }
             }
 
-            return totalQuickHashCache;
+            return quickHashCache;
         }
 
         public int leafCount() {

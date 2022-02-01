@@ -250,7 +250,7 @@ public class Main {
         System.out.println("p-list time:" + average(plTimes));
         System.out.println("a-list time:" + average(alTimes));
 
-        final var randomList = new PersistentList<>(getRandomArray(5, 10));
+        final var randomList = new PersistentList<>(getRandomArray(20, 50));
         final var sortedList = randomList.sorted((a, b) -> a - b);
         System.out.println(randomList);
         System.out.println(sortedList);
