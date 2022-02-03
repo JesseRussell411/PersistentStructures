@@ -10,9 +10,9 @@ import java.util.stream.StreamSupport;
 
 
 public class PersistentList<T> implements Iterable<T> {
-    private static final int LEAF_ITEM_LIMIT = 64;
-    private static final Leaf EMPTY_LEAF = new Leaf(new Object[0]);
+    private static final int LEAF_SIZE = 32;
     private static final Object[] EMPTY_ARRAY = new Object[0];
+    private static final Leaf EMPTY_LEAF = new Leaf(EMPTY_ARRAY);
 
     private Node root;
 
@@ -35,7 +35,7 @@ public class PersistentList<T> implements Iterable<T> {
         this(fromArray(initialValue));
     }
 
-    public PersistentList(List<T> initialValue){
+    public PersistentList(List<T> initialValue) {
         this(fromArray(initialValue.toArray()));
     }
 
@@ -145,7 +145,9 @@ public class PersistentList<T> implements Iterable<T> {
         equalityCache.put(other.root, equality);
     }
 
-    /** ~ (!!! should only be called if a.equals(b) !!!) ~ */
+    /**
+     * ~ (!!! should only be called if a.equals(b) !!!) ~
+     */
     private void consolidateInnards(PersistentList<?> other) {
         assert areEqual(this, other);
         if (root != other.root) {
@@ -195,7 +197,7 @@ public class PersistentList<T> implements Iterable<T> {
     public PersistentList<T> set(int index, T value) {
         indexCheck(index, size());
 
-        return new PersistentList<>(withValueAtIndex(root, index, value));
+        return new PersistentList<>(withReplacement(root, index, index + 1, new Object[]{value}, 0));
     }
 
     public PersistentList<T> setAtEnd(int index, T value) {
@@ -348,6 +350,7 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     public PersistentList<T> reverse() {
+        if (size() <= 1) return this;
         var cached = reverseCache.get();
         if (cached != null) return new PersistentList<>(cached);
 
@@ -386,6 +389,26 @@ public class PersistentList<T> implements Iterable<T> {
         return result;
     }
 
+    public Integer indexOf(T item) {
+        // TODO maybe add a cache
+        int index = 0;
+        for (final var localItem : this) {
+            if (areEqual(this, localItem)) return index;
+            ++index;
+        }
+        return null;
+    }
+
+    public boolean contains(T item) {
+        // TODO maybe add a cache
+        for (final var localItem : this) {
+            if (areEqual(this, localItem)) return true;
+        }
+        return false;
+
+    }
+
+
     // ==================== Internal Modification ========================
     private static Object valueFrom(Node n, int index) {
         if (n instanceof Branch b) {
@@ -398,22 +421,6 @@ public class PersistentList<T> implements Iterable<T> {
             return l.items[index];
         } else {
             return null;
-        }
-    }
-
-    private static Node withValueAtIndex(Node n, int index, Object value) {
-        if (n instanceof Branch b) {
-            if (index < b.left.itemCount()) {
-                return new Branch(withValueAtIndex(b.left, index, value), b.right);
-            } else {
-                return new Branch(b.left, withValueAtIndex(b.right, index - b.left.itemCount(), value));
-            }
-        } else if (n instanceof Leaf l) {
-            final var items = Arrays.copyOf(l.items, l.items.length);
-            items[index] = value;
-            return new Leaf(items);
-        } else {
-            throw new NullPointerException();
         }
     }
 
@@ -433,11 +440,11 @@ public class PersistentList<T> implements Iterable<T> {
         } else if (n instanceof Leaf l) {
             final var items = withInsertion(l.items, index, values);
 
-            if (items.length <= LEAF_ITEM_LIMIT) {
+            if (items.length <= LEAF_SIZE) {
                 return new Leaf(items);
             } else {
                 return fromPartitions(
-                        partition(items, LEAF_ITEM_LIMIT));
+                        partition(items, LEAF_SIZE));
             }
         } else {
             throw new NullPointerException();
@@ -502,6 +509,40 @@ public class PersistentList<T> implements Iterable<T> {
         } else {
             throw new NullPointerException();
         }
+    }
+
+
+    private static Node withReplacement(Node n, int start, int end, Object[] src, int srcStart) {
+        final var length = end - start;
+        final var srcEnd = srcStart + length;
+        final var srcLength = srcEnd - srcStart;
+        if (length <= 0) return n;
+
+        if (n instanceof Branch b) {
+            if (start < b.left.itemCount()) {
+                if (end > b.left.itemCount()) {
+                    final var leftPortion = b.left.itemCount() - start;
+                    return new Branch(
+                            withReplacement(b.left, start, b.left.itemCount(), src, srcStart),
+                            withReplacement(b.right, 0, end - b.left.itemCount(), src, srcStart + leftPortion));
+                } else {
+                    return new Branch(
+                            withReplacement(b.left, start, end, src, srcStart),
+                            b.right);
+                }
+            } else {
+                return new Branch(
+                        b.left,
+                        withReplacement(b.right, start - b.left.itemCount(), end - b.left.itemCount(), src, srcStart));
+            }
+        } else if (n instanceof Leaf l) {
+            final var newItems = withReplacement(l.items, start, end, src, srcStart);
+            if (newItems != l.items) {
+                return new Leaf(newItems);
+            } else {
+                return l;
+            }
+        } else throw new NullPointerException();
     }
 
     private static Node subListFrom(Node n, int start, int end) {
@@ -614,8 +655,8 @@ public class PersistentList<T> implements Iterable<T> {
             if (b.left instanceof Branch left) {
                 // balanceFactor == right.weight - left.weight;
                 // weight = left.weight + right.weight + 1    (the 1 is the weight of node itself)
-                return (left.right.weight() + b.right.weight() + 1) - left.left.weight();
 
+                return (left.right.weight() + b.right.weight() + 1) - left.left.weight();
 //                return new Structure(left_b.left, new Structure(left_b.right, b.right)); from rotatedRight(Node n)
             } else {
                 return b.balanceFactor();
@@ -695,8 +736,10 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node sorted(Node n, Comparator<Object> comparator) {
+        if (n.itemCount() == 1) return n;
+        if (n.itemCount() == 0) return EMPTY_LEAF;
+
         if (n instanceof Leaf l) {
-            if (l.items.length == 0) return EMPTY_LEAF;
             if (isSorted(l.items, comparator)) return l;
 
             final var sortedItems = Arrays.copyOf(l.items, l.items.length);
@@ -734,10 +777,10 @@ public class PersistentList<T> implements Iterable<T> {
                     comparator);
 
             // partition the resulting items
-            if (sortedItems.length <= LEAF_ITEM_LIMIT) {
+            if (sortedItems.length <= LEAF_SIZE) {
                 return new Leaf(sortedItems);
             } else {
-                final var partitions = partition(sortedItems, LEAF_ITEM_LIMIT);
+                final var partitions = partition(sortedItems, LEAF_SIZE);
                 return fromPartitions(partitions);
             }
         } else {
@@ -814,6 +857,38 @@ public class PersistentList<T> implements Iterable<T> {
         return result;
     }
 
+    private static Object[] withReplacement(Object[] original, int start, int end, Object[] src, int srcStart) {
+        final var length = end - start;
+        final var result = new Object[original.length];
+
+        for (int i = 0; i < start; ++i) {
+            result[i] = original[i];
+        }
+
+        boolean containedChange = false;
+        for (int i = 0; i < length; ++i) {
+            final var indexO = i + start;
+            final var indexS = i + srcStart;
+            final var newItem = src[indexS];
+
+            if (!areEqual(original[indexO], newItem)) {
+                containedChange = true;
+            }
+
+            result[indexO] = newItem;
+        }
+
+        for(int i = end; i < original.length; ++i){
+            result[i] = original[i];
+        }
+
+        if (containedChange) {
+            return result;
+        } else {
+            return original;
+        }
+    }
+
     private static Object[] withoutRange(Object[] original, int start, int length) {
         if (length <= 0) return original;
         if (start == 0 && length == original.length) return EMPTY_ARRAY;
@@ -887,11 +962,11 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node fromArray(Object[] array) {
-        if (array.length <= LEAF_ITEM_LIMIT) {
+        if (array.length <= LEAF_SIZE) {
             return new Leaf(array);
         } else {
             return fromPartitions(
-                    partition(array, LEAF_ITEM_LIMIT));
+                    partition(array, LEAF_SIZE));
         }
     }
 
@@ -1194,18 +1269,23 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static class LeafIterator implements Iterator<Leaf> {
-        Stack<Node> location = null;
-        int progress = 0;
+        Stack<Node> location;
+        int progress;
         final Node node;
+
+        public void reset() {
+            location = null;
+            progress = 0;
+        }
 
         public LeafIterator(Node node) {
             this.node = node;
+            reset();
         }
 
         public boolean hasNext() {
             return progress < node.leafCount();
         }
-
 
         public Leaf next() {
             if (!hasNext()) return null;

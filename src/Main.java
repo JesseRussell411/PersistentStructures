@@ -255,7 +255,7 @@ public class Main {
         System.out.println(sortedList);
 
         for (int q = 0; q < 3; ++q) {
-            final var big = 1_000_000;
+            final var big = 10;
             final var bigRandomArray = getRandomArray(big, 10);
             final var bigSortedArray = getSortedArray(big);
             final var bigAlmostSortedArray = getSortedArray(big);
@@ -310,6 +310,22 @@ public class Main {
             endTime = System.currentTimeMillis();
             System.out.println("AR almost already sorted time: " + (endTime - startTime));
         }
+
+
+
+        var testMap = new PersistentMap<String, Integer>();
+
+        for(int i = 0; i < 100; ++i){
+            testMap = testMap.put(String.valueOf(i), i);
+        }
+
+        for(int i = 0; i < 100; ++i){
+            System.out.println(testMap.get(String.valueOf(i)));
+        }
+
+
+
+
 
         System.out.println();
 
