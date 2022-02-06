@@ -254,26 +254,37 @@ public class Main {
         System.out.println(randomList);
         System.out.println(sortedList);
 
+
+        final var testsorted = getSortedArray(100);
+        printIterable(Arrays.stream(testsorted).toList());
+        shuffle(testsorted, testsorted.length / 2, testsorted.length);
+        printIterable(Arrays.stream(testsorted).toList());
+
+
+
         for (int q = 0; q < 3; ++q) {
-            final var big = 10;
+            final var big = 10_000_000;
             final var bigRandomArray = getRandomArray(big, 10);
             final var bigSortedArray = getSortedArray(big);
             final var bigAlmostSortedArray = getSortedArray(big);
-            for (int i = 0; i < big / 10_000; ++i)
-                bigAlmostSortedArray[rand.nextInt(big)] = i;
+            shuffle(bigAlmostSortedArray, (int)((float)bigAlmostSortedArray.length * (4.0/5.0)), bigAlmostSortedArray.length);
 
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
-            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            for (int i = 0; i < big / 10_000; ++i)
+//                bigAlmostSortedArray[rand.nextInt(big)] = i;
+//
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
+//            bigAlmostSortedArray[rand.nextInt(big)] = 9;
 
             final var bigRandomList = new PersistentList<>(bigRandomArray);
             final var bigSortedList = new PersistentList<>(bigSortedArray);
             final var bigAlmostSortedList = new PersistentList<>(bigAlmostSortedArray);
+//            System.out.println("basl: =====> " + bigAlmostSortedList);
 
             var startTime = System.currentTimeMillis();
             bigRandomList.sort(Comparator.comparingInt(a -> a));
@@ -312,19 +323,19 @@ public class Main {
         }
 
 
-
         var testMap = new PersistentMap<String, Integer>();
 
-        for(int i = 0; i < 100; ++i){
+        for (int i = 0; i < 100; ++i) {
             testMap = testMap.put(String.valueOf(i), i);
         }
 
-        for(int i = 0; i < 100; ++i){
+        for (int i = 0; i < 100; ++i) {
             System.out.println(testMap.get(String.valueOf(i)));
         }
 
 
-
+        System.out.println(testMap.put("10", 89).get("10"));
+        printIterable(testMap.put("10", 89));
 
 
         System.out.println();
@@ -367,5 +378,19 @@ public class Main {
         }
 
         return result;
+    }
+
+    private static void shuffle(Object[] items, int start, int end) {
+        // fisher-yates shuffle:
+        for (int i = start; i < end - 1; i++) {
+            final var j = rand.nextInt(i + 1, end);
+            final var temp = items[j];
+            items[j] = items[i];
+            items[i] = temp;
+        }
+    }
+
+    private static void shuffle(Object[] items){
+        shuffle(items, 0, items.length);
     }
 }

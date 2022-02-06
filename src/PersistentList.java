@@ -19,12 +19,11 @@ public class PersistentList<T> implements Iterable<T> {
     /**
      * stores the root nodes of known equal or non-equal PersistentLists. It stores the root nodes because the equality of Node is identity based, not value based.
      */
-    private final Map<Node, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
-    private volatile WeakReference<Node> reverseCache = new WeakReference<>(null);
-    private final Object reverseCacheLock = new Object();
-
+    private transient final Map<Node, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
+    private transient volatile WeakReference<Node> reverseCache = new WeakReference<>(null);
+    private transient final Object reverseCacheLock = new Object();
     private volatile Integer hashCache = null;
-    private final Object hashCacheLock = new Object();
+    private transient final Object hashCacheLock = new Object();
 
     private PersistentList(Node root) {
         nullCheck(root);
@@ -75,7 +74,7 @@ public class PersistentList<T> implements Iterable<T> {
                 var hash = 0;
 
                 for (final var item : this) {
-                    hash = Objects.hash(hash, item == null ? 0 : item);
+                    hash = Objects.hash(hash, item);
                 }
 
                 hashCache = hash;
@@ -87,58 +86,45 @@ public class PersistentList<T> implements Iterable<T> {
 
     @Override
     public boolean equals(Object obj) {
-        // check if the object is the right type
+        if (this == obj) return true; // same instance
         if (obj instanceof PersistentList<?> other) {
-            // try quick checks
-            if (this == other) return true; // same instance
-            if (root == other.root) return true;
-            if (size() != other.size()) return false;
-            if (size() == 0 && other.size() == 0) {
-                consolidateInnards(other);
-                return true;
-            }
-
             // check the cache
             final var fromCache = checkEqualityFromCache(other);
             if (fromCache != null) {
-                if (fromCache) {
-                    consolidateInnards(other);
-                    return true;
-                } else {
-                    return false;
-                }
+                return fromCache;
             }
 
             // Check hashCodes
             if (root.quickHash() != other.root.quickHash()) return false;
             if (hashCode() != other.hashCode()) return false;
 
-            // Quick checks failed, full check needed. Result will be cached for later.
-            if (nodesAreEqual(root, other.root)) {
-                // add to cache
-                storeEqualityInCache(other, true);
+            if (fullCheckEquals(other)) {
                 consolidateInnards(other);
-
                 return true;
-            } else {
-                // add to cache
-                storeEqualityInCache(other, false);
-                return false;
-            }
+            } else return false;
+        } else return false;
+    }
+
+    private boolean fullCheckEquals(PersistentList<?> other) {
+        if (root == other.root) return true;
+        if (size() != other.size()) return false;
+        if (size() == 0 && other.size() == 0) return true;
+
+        if (nodesAreEqual(root, other.root)) {
+            // add to cache
+            storeEqualityInCache(other, true);
+            return true;
         } else {
+            // add to cache
+            storeEqualityInCache(other, false);
             return false;
         }
     }
 
     private Boolean checkEqualityFromCache(PersistentList<?> other) {
         final var fromLocal = equalityCache.get(other.root);
-        final var fromOther = other.equalityCache.get(root);
-
-        if (fromLocal == null) {
-            return fromOther;
-        } else {
-            return fromLocal;
-        }
+        if (fromLocal == null) return other.equalityCache.get(root);
+        return fromLocal;
     }
 
     private void storeEqualityInCache(PersistentList<?> other, boolean equality) {
@@ -149,7 +135,7 @@ public class PersistentList<T> implements Iterable<T> {
      * ~ (!!! should only be called if a.equals(b) !!!) ~
      */
     private void consolidateInnards(PersistentList<?> other) {
-        assert areEqual(this, other);
+        assert Objects.equals(this, other);
         if (root != other.root) {
             if (root instanceof Branch ab && ab.quickHashCache != null) {
                 other.root = root;
@@ -166,9 +152,9 @@ public class PersistentList<T> implements Iterable<T> {
             other.hashCache = hashCache;
         }
 
-        // TODO fix cache loss problem, you know what I'm talking about, assuming you are me, if not, you problem don't know what I'm talking about.
+        // TODO fix cache loss problem, you know what I'm talking about, assuming you are me, if not, you probably don't know what I'm talking about.
         if (reverseCache.get() == null) {
-            if (reverseCache.get() != null) {
+            if (other.reverseCache.get() != null) {
                 reverseCache = other.reverseCache;
             }
         } else if (other.reverseCache.get() == null) {
@@ -393,7 +379,7 @@ public class PersistentList<T> implements Iterable<T> {
         // TODO maybe add a cache
         int index = 0;
         for (final var localItem : this) {
-            if (areEqual(this, localItem)) return index;
+            if (Objects.equals(this, localItem)) return index;
             ++index;
         }
         return null;
@@ -402,7 +388,7 @@ public class PersistentList<T> implements Iterable<T> {
     public boolean contains(T item) {
         // TODO maybe add a cache
         for (final var localItem : this) {
-            if (areEqual(this, localItem)) return true;
+            if (Objects.equals(this, localItem)) return true;
         }
         return false;
 
@@ -729,7 +715,7 @@ public class PersistentList<T> implements Iterable<T> {
         final var itemIteratorB = new ItemIterator(b, leafIteratorB, currentLeafB, offsetB, offsetB);
 
         while (itemIteratorA.hasNext() && itemIteratorB.hasNext()) {
-            if (!areEqual(itemIteratorA.next(), itemIteratorB.next())) return false;
+            if (!Objects.equals(itemIteratorA.next(), itemIteratorB.next())) return false;
         }
 
         return !(itemIteratorA.hasNext() || itemIteratorB.hasNext());
@@ -739,15 +725,8 @@ public class PersistentList<T> implements Iterable<T> {
         if (n.itemCount() == 1) return n;
         if (n.itemCount() == 0) return EMPTY_LEAF;
 
-        if (n instanceof Leaf l) {
-            if (isSorted(l.items, comparator)) return l;
 
-            final var sortedItems = Arrays.copyOf(l.items, l.items.length);
-            Arrays.sort(sortedItems, comparator);
-            return new Leaf(sortedItems);
-
-//            return new Leaf(Arrays.stream(l.items).sorted(comparator).toArray());
-        } else if (n instanceof Branch b) {
+        if (n instanceof Branch b) {
             if (isSorted(new ItemsIterable(b), comparator)) return b;
 
             // sort the branches
@@ -776,16 +755,17 @@ public class PersistentList<T> implements Iterable<T> {
                     new ItemsIterable(rightSorted),
                     comparator);
 
-            // partition the resulting items
-            if (sortedItems.length <= LEAF_SIZE) {
-                return new Leaf(sortedItems);
-            } else {
-                final var partitions = partition(sortedItems, LEAF_SIZE);
-                return fromPartitions(partitions);
-            }
-        } else {
-            throw new NullPointerException();
-        }
+            // partition the resulting items into a tree and return that
+            return fromArray(sortedItems);
+        } else if (n instanceof Leaf l) {
+            if (isSorted(l.items, comparator)) return l;
+
+            final var sortedItems = Arrays.copyOf(l.items, l.items.length);
+            Arrays.sort(sortedItems, comparator);
+            return new Leaf(sortedItems);
+
+//            return new Leaf(Arrays.stream(l.items).sorted(comparator).toArray());
+        } else throw new NullPointerException();
     }
 
     // =================== Helpers ===================================
@@ -871,14 +851,14 @@ public class PersistentList<T> implements Iterable<T> {
             final var indexS = i + srcStart;
             final var newItem = src[indexS];
 
-            if (!areEqual(original[indexO], newItem)) {
+            if (!Objects.equals(original[indexO], newItem)) {
                 containedChange = true;
             }
 
             result[indexO] = newItem;
         }
 
-        for(int i = end; i < original.length; ++i){
+        for (int i = end; i < original.length; ++i) {
             result[i] = original[i];
         }
 
@@ -972,14 +952,6 @@ public class PersistentList<T> implements Iterable<T> {
 
     private static Node fromIterable(Iterable<Object> iterable) {
         return fromArray(StreamSupport.stream(iterable.spliterator(), false).toArray());
-    }
-
-    private static boolean areEqual(Object a, Object b) {
-        if (a == null) {
-            return b == null;
-        } else {
-            return a.equals(b);
-        }
     }
 
     /**
