@@ -14,12 +14,20 @@ public class PersistentList<T> implements Iterable<T> {
     private static final Object[] EMPTY_ARRAY = new Object[0];
     private static final Leaf EMPTY_LEAF = new Leaf(EMPTY_ARRAY);
 
+    Object identifier() {
+        return root;
+    }
+
     private Node root;
+
+    /*package*/ Node root() {
+        return root;
+    }
 
     /**
      * stores the root nodes of known equal or non-equal PersistentLists. It stores the root nodes because the equality of Node is identity based, not value based.
      */
-    private transient final Map<Node, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
+    private transient final Map<Object, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
     private transient volatile WeakReference<Node> reverseCache = new WeakReference<>(null);
     private transient final Object reverseCacheLock = new Object();
     private volatile Integer hashCache = null;
@@ -128,7 +136,7 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private void storeEqualityInCache(PersistentList<?> other, boolean equality) {
-        equalityCache.put(other.root, equality);
+        equalityCache.put(other.identifier(), equality);
     }
 
     /**
@@ -569,32 +577,47 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private static Node shallowlyBalanced(Node n) {
-        // everything is awful
+        if (n.absoluteBalanceFactor() <= 1) return n;
         var result = n;
         int bestAbsoluteBalanceFactor = result.absoluteBalanceFactor();
 
         for (int loopCount = 0; loopCount < n.weight(); ++loopCount) { // Failsafe in case the loop doesn't halt.
-            if (result.balanceFactor() > 1) {
-                final var rotatedLeftAbsoluteBalanceFactor = Math.abs(rotatedLeftBalanceFactor(result));
+            final var rotatedLeftAbsoluteBalanceFactor = Math.abs(rotatedLeftBalanceFactor(result));
+            final var rotatedRightAbsoluteBalanceFactor = Math.abs(rotatedRightBalanceFactor(result));
 
-                if (rotatedLeftAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
-                    bestAbsoluteBalanceFactor = rotatedLeftAbsoluteBalanceFactor;
-                    result = rotatedLeft(result);
-                } else {
-                    return result;
-                }
-            } else if (result.balanceFactor() < -1) {
-                final var rotatedRightAbsoluteBalanceFactor = Math.abs(rotatedRightBalanceFactor(result));
-
+            if (rotatedRightAbsoluteBalanceFactor < rotatedLeftAbsoluteBalanceFactor) {
                 if (rotatedRightAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
-                    bestAbsoluteBalanceFactor = rotatedRightAbsoluteBalanceFactor;
                     result = rotatedRight(result);
-                } else {
-                    return result;
-                }
+                } else return result;
             } else {
-                return result;
+                if (rotatedLeftAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
+                    result = rotatedLeft(result);
+                } else return result;
             }
+            bestAbsoluteBalanceFactor = result.absoluteBalanceFactor();
+//
+//
+//            if (result.balanceFactor() > 1) {
+//                final var rotatedLeftAbsoluteBalanceFactor = Math.abs(rotatedLeftBalanceFactor(result));
+//
+//                if (rotatedLeftAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
+//                    bestAbsoluteBalanceFactor = rotatedLeftAbsoluteBalanceFactor;
+//                    result = rotatedLeft(result);
+//                } else {
+//                    return result;
+//                }
+//            } else if (result.balanceFactor() < -1) {
+//                final var rotatedRightAbsoluteBalanceFactor = Math.abs(rotatedRightBalanceFactor(result));
+//
+//                if (rotatedRightAbsoluteBalanceFactor < bestAbsoluteBalanceFactor) {
+//                    bestAbsoluteBalanceFactor = rotatedRightAbsoluteBalanceFactor;
+//                    result = rotatedRight(result);
+//                } else {
+//                    return result;
+//                }
+//            } else {
+//                return result;
+//            }
         }
         System.err.println("Loop count limit exceeded in PersistentList.shallowlyBalanced(Node n)");
         return result;
@@ -1064,7 +1087,7 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    private interface Node {
+    interface Node {
         int leafCount();
 
         int itemCount();
@@ -1136,7 +1159,7 @@ public class PersistentList<T> implements Iterable<T> {
         final Object[] items;
         volatile Integer quickHashCache = null;
 
-        public Leaf(Object[] items) {
+        Leaf(Object[] items) {
             this.items = items == null ? new Object[0] : items;
         }
 

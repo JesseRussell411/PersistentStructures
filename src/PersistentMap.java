@@ -1,11 +1,17 @@
-import java.util.Iterator;
-import java.util.Objects;
+import java.util.*;
 
 public class PersistentMap<K, V> implements Iterable<PersistentMap<K, V>.Entry> {
     private static final int INITIAL_CAPACITY = 64;
     private static final PersistentList<_Entry> INITIAL_TABLE;
     private final PersistentList<_Entry> table;
     private final int size;
+    private final Map<Object, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
+    private volatile Integer hashCache = null;
+    private final Object hashCacheLock = new Object();
+
+    Object identifier() {
+        return table.identifier();
+    }
 
     private PersistentMap(PersistentList<_Entry> table, int size) {
         this.table = table;
