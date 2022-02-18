@@ -1,3 +1,7 @@
+package _trash;
+
+import _utils.ObjectUtils;
+
 import java.util.*;
 
 public class PersistentMap<K, V> implements Iterable<PersistentMap<K, V>.Entry> {
@@ -58,7 +62,7 @@ public class PersistentMap<K, V> implements Iterable<PersistentMap<K, V>.Entry> 
         int index = startIndex;
         _Entry current = table.get(index);
 
-        while (!Objects.equals(key, current.key)) {
+        while (!Utils_object.equals(key, current.key)) {
             if (++index >= table.size()) index = 0;
             if (index == startIndex) return null;
 
@@ -74,7 +78,7 @@ public class PersistentMap<K, V> implements Iterable<PersistentMap<K, V>.Entry> 
         _Entry current;
 
         // find a spot
-        while ((current = table.get(index)) != null && !Objects.equals(entry.key, current.key)) {
+        while ((current = table.get(index)) != null && !Utils_object.equals(entry.key, current.key)) {
             if (++index >= table.size()) index = 0;
             if (index == startIndex) return null;
         }

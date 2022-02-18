@@ -1,3 +1,5 @@
+package _trash;
+
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.stream.StreamSupport;
@@ -10,6 +12,33 @@ import java.util.stream.StreamSupport;
 
 
 public class PersistentList<T> implements Iterable<T> {
+    private static final Map<Node, Node> equalityClusters = Collections.synchronizedMap(new DoubleWeakMap<>());
+//    private static final Map<Node, ?> inEqualityCache = Collections.synchronizedMap(new WeakHashMap<>());
+
+    private static void cacheEquality(Node a, Node b) {
+        if (a == b) return;
+        final var cachedKeyNodeA = equalityClusters.get(a);
+        final var cachedKeyNodeB = equalityClusters.get(b);
+
+        if (cachedKeyNodeA != null) {
+            cacheEquality(cachedKeyNodeA, b);
+        } else if (cachedKeyNodeB != null) {
+            cacheEquality(a, cachedKeyNodeB);
+        } else {
+            equalityClusters.put(a, b);
+        }
+    }
+
+    private static Node getKeyNode(Node a) {
+        final var cachedKeyNode = equalityClusters.get(a);
+
+        return cachedKeyNode == null ? a : cachedKeyNode;
+    }
+
+    private static boolean checkCacheForEquality(Node a, Node b) {
+        return getKeyNode(a) == getKeyNode(b);
+    }
+
     private static final int LEAF_SIZE = 32;
     private static final Object[] EMPTY_ARRAY = new Object[0];
     private static final Leaf EMPTY_LEAF = new Leaf(EMPTY_ARRAY);
@@ -24,17 +53,13 @@ public class PersistentList<T> implements Iterable<T> {
         return root;
     }
 
-    /**
-     * stores the root nodes of known equal or non-equal PersistentLists. It stores the root nodes because the equality of Node is identity based, not value based.
-     */
-    private transient final Map<Object, Boolean> equalityCache = Collections.synchronizedMap(new WeakHashMap<>());
     private transient volatile WeakReference<Node> reverseCache = new WeakReference<>(null);
     private transient final Object reverseCacheLock = new Object();
     private volatile Integer hashCache = null;
     private transient final Object hashCacheLock = new Object();
 
     private PersistentList(Node root) {
-        nullCheck(root);
+        Utils_object.nullCheck(root);
         this.root = root;
     }
 
@@ -78,6 +103,9 @@ public class PersistentList<T> implements Iterable<T> {
         if (hashCache != null) return hashCache;
 
         synchronized (hashCacheLock) {
+            if (hashCache == null){
+                hashCache = Objects.hash(toArray());
+            }
             if (hashCache == null) {
                 var hash = 0;
 
@@ -96,10 +124,15 @@ public class PersistentList<T> implements Iterable<T> {
     public boolean equals(Object obj) {
         if (this == obj) return true; // same instance
         if (obj instanceof PersistentList<?> other) {
-            // check the cache
-            final var fromCache = checkEqualityFromCache(other);
-            if (fromCache != null) {
-                return fromCache;
+            // check easy things first
+            if (this.root == other.root) return true;
+            if (size() != other.size()) return false;
+            if (size() == 0 && other.size() == 0) return true;
+
+            // Check cache
+            if (checkCacheForEquality(root, other.root)){
+                consolidateInnards(other);
+                return true;
             }
 
             // Check hashCodes
@@ -114,43 +147,20 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     private boolean fullCheckEquals(PersistentList<?> other) {
-        if (root == other.root) return true;
-        if (size() != other.size()) return false;
-        if (size() == 0 && other.size() == 0) return true;
-
-        if (nodesAreEqual(root, other.root)) {
-            // add to cache
-            storeEqualityInCache(other, true);
-            return true;
-        } else {
-            // add to cache
-            storeEqualityInCache(other, false);
-            return false;
-        }
-    }
-
-    private Boolean checkEqualityFromCache(PersistentList<?> other) {
-        final var fromLocal = equalityCache.get(other.root);
-        if (fromLocal == null) return other.equalityCache.get(root);
-        return fromLocal;
-    }
-
-    private void storeEqualityInCache(PersistentList<?> other, boolean equality) {
-        equalityCache.put(other.identifier(), equality);
+        return (nodesAreEqual(root, other.root));
     }
 
     /**
      * ~ (!!! should only be called if a.equals(b) !!!) ~
      */
     private void consolidateInnards(PersistentList<?> other) {
-        assert Objects.equals(this, other);
-        if (root != other.root) {
-            if (root instanceof Branch ab && ab.quickHashCache != null) {
-                other.root = root;
-            } else {
-                root = other.root;
-            }
-        }
+//        assert Objects.equals(this, other); TODO check to make sure this assert won't cause a stack overflow
+
+        cacheEquality(root, other.root);
+
+        final var keyNode = getKeyNode(root);
+        root = keyNode;
+        other.root = keyNode;
 
         if (hashCache == null) {
             if (other.hashCache != null) {
@@ -387,7 +397,7 @@ public class PersistentList<T> implements Iterable<T> {
         // TODO maybe add a cache
         int index = 0;
         for (final var localItem : this) {
-            if (Objects.equals(this, localItem)) return index;
+            if (Utils_object.equals(this, localItem)) return index;
             ++index;
         }
         return null;
@@ -396,7 +406,7 @@ public class PersistentList<T> implements Iterable<T> {
     public boolean contains(T item) {
         // TODO maybe add a cache
         for (final var localItem : this) {
-            if (Objects.equals(this, localItem)) return true;
+            if (Utils_object.equals(this, localItem)) return true;
         }
         return false;
 
@@ -619,7 +629,7 @@ public class PersistentList<T> implements Iterable<T> {
 //                return result;
 //            }
         }
-        System.err.println("Loop count limit exceeded in PersistentList.shallowlyBalanced(Node n)");
+        System.err.println("Loop count limit exceeded in _trash.PersistentList.shallowlyBalanced(Node n)");
         return result;
     }
 
@@ -738,7 +748,7 @@ public class PersistentList<T> implements Iterable<T> {
         final var itemIteratorB = new ItemIterator(b, leafIteratorB, currentLeafB, offsetB, offsetB);
 
         while (itemIteratorA.hasNext() && itemIteratorB.hasNext()) {
-            if (!Objects.equals(itemIteratorA.next(), itemIteratorB.next())) return false;
+            if (!Utils_object.equals(itemIteratorA.next(), itemIteratorB.next())) return false;
         }
 
         return !(itemIteratorA.hasNext() || itemIteratorB.hasNext());
@@ -792,151 +802,6 @@ public class PersistentList<T> implements Iterable<T> {
     }
 
     // =================== Helpers ===================================
-    public static void indexCheck(int index, int length) {
-        if (index < 0 || length <= index) throw new IndexOutOfBoundsException(index);
-    }
-
-    public static void nullCheck(Object nullable) {
-        if (nullable == null) throw new NullPointerException();
-    }
-
-    public static int hashCodeOf(Object o) {
-        return o == null ? 0 : o.hashCode();
-    }
-
-    public static int hashIterable(Iterable<?> objects) {
-        int result = 0;
-
-        for (final var obj : objects) {
-            result = Objects.hash(result, obj);
-        }
-
-        return result;
-    }
-
-    /**
-     * Generates a hash that isn't well distributed but at least doesn't care about order.
-     */
-    public static int nonOrderedHash(Object a, Object b) {
-//        return hashCodeOf(a) + hashCodeOf(b);
-        return hashCodeOf(a) ^ hashCodeOf(b);
-//        return 31 * hashCodeOf(a) + 31 * hashCodeOf(b);
-//        final var hashA = hashCodeOf(a);
-//        final var hashB = hashCodeOf(b);
-//        return hashA * hashB * 31 + hashA + hashB; // breaks with lots of values
-    }
-
-    /**
-     * Generates a hash that isn't well distributes but at least doesn't care about order.
-     */
-    public static int nonOrderedHash(Object[] objects) {
-        int result = 0;
-        for (final var obj : objects) {
-            result = nonOrderedHash(result, obj);
-        }
-
-        return result;
-    }
-
-    private static Object[] withInsertion(Object[] original, int index, Object[] values) {
-        if (values == null || values.length == 0) return original;
-        indexCheck(index, original.length + 1);
-        nullCheck(original);
-
-        final var result = new Object[original.length + values.length];
-
-        for (int i = 0; i < index; ++i) {
-            result[i] = original[i];
-        }
-
-        for (int i = index; i < index + values.length; ++i) {
-            result[i] = values[i - index];
-        }
-
-        for (int i = index + values.length; i < original.length + values.length; ++i) {
-            result[i] = original[i - values.length];
-        }
-
-        return result;
-    }
-
-    private static Object[] withReplacement(Object[] original, int start, int end, Object[] src, int srcStart) {
-        final var length = end - start;
-        final var result = new Object[original.length];
-
-        for (int i = 0; i < start; ++i) {
-            result[i] = original[i];
-        }
-
-        boolean containedChange = false;
-        for (int i = 0; i < length; ++i) {
-            final var indexO = i + start;
-            final var indexS = i + srcStart;
-            final var newItem = src[indexS];
-
-            if (!Objects.equals(original[indexO], newItem)) {
-                containedChange = true;
-            }
-
-            result[indexO] = newItem;
-        }
-
-        for (int i = end; i < original.length; ++i) {
-            result[i] = original[i];
-        }
-
-        if (containedChange) {
-            return result;
-        } else {
-            return original;
-        }
-    }
-
-    private static Object[] withoutRange(Object[] original, int start, int length) {
-        if (length <= 0) return original;
-        if (start == 0 && length == original.length) return EMPTY_ARRAY;
-        indexCheck(start, original.length);
-        if (start + length > original.length) throw new IndexOutOfBoundsException(start + length);
-
-        final var result = new Object[original.length - length];
-
-        for (int i = 0; i < start; ++i) {
-            result[i] = original[i];
-        }
-
-        for (int i = start + length; i < original.length; ++i) {
-            result[i - length] = original[i];
-        }
-
-        return result;
-    }
-
-    private static Object[][] partition(Object[] array, int size) {
-        nullCheck(array);
-        if (size < 1) throw new IllegalArgumentException("Size must be greater than 0.");
-
-        if (size >= array.length) {
-            return new Object[][]{array};
-        }
-
-        final var remainder = array.length % size;
-        final var wholeCount = array.length / size;
-
-        final var result = new Object[wholeCount + (remainder > 0 ? 1 : 0)][];
-
-        for (int i = 0; i < wholeCount; ++i) {
-            final var index = i * size;
-            result[i] = Arrays.copyOfRange(array, index, index + size);
-        }
-
-        if (remainder > 0) {
-            final var index = (wholeCount) * size;
-            result[wholeCount] = Arrays.copyOfRange(array, index, index + remainder);
-        }
-
-        return result;
-    }
-
     /**
      * Produces a balanced node tree from a list of arrays. The arrays become the items in the leafs.
      *
@@ -990,72 +855,12 @@ public class PersistentList<T> implements Iterable<T> {
         }
     }
 
-    private static Object[] merged(Iterable<Object> a, Iterable<Object> b, Comparator<Object> comparator) {
-        final var enuA = new Enumerator<>(a.iterator());
-        final var enuB = new Enumerator<>(b.iterator());
-        final var result = new ArrayList<>();
-
-        enuA.moveNext();
-        enuB.moveNext();
-
-        while (!enuA.complete() && !enuB.complete()) {
-            if (comparator.compare(enuA.current(), enuB.current()) < 0) {
-                result.add(enuA.current());
-                enuA.moveNext();
-            } else {
-                result.add(enuB.current());
-                enuB.moveNext();
-            }
-        }
-
-        if (!enuA.complete()) {
-            do {
-                result.add(enuA.current());
-            } while (enuA.moveNext());
-        } else if (!enuB.complete()) {
-            do {
-                result.add(enuB.current());
-            } while (enuB.moveNext());
-        }
-
-        return result.toArray();
-    }
-
-    private static boolean isSorted(Object[] array, Comparator<Object> comparator) {
-        for (int i = 1; i < array.length; ++i) {
-            if (comparator.compare(array[i - 1], array[i]) > 0) return false;
-        }
-        return true;
-    }
-
-    private static <T> boolean isSorted(Iterable<T> items, Comparator<T> comparator) {
-        final var iter = items.iterator();
-
-        if (!iter.hasNext()) return true;
-
-        var prev = iter.next();
-
-        while (iter.hasNext()) {
-            if (comparator.compare(prev, prev = iter.next()) > 0) return false;
-        }
-
-        return true;
-    }
-
     private static <T> void reverse(T[] array) {
         for (int i = 0; i < array.length / 2; ++i) {
             final var temp = array[i];
             array[i] = array[array.length - 1 - i];
             array[array.length - 1 - i] = temp;
         }
-    }
-
-    private static Object[] reversed(Object[] array) {
-        final var result = new Object[array.length];
-        for (int i = 0; i < array.length; ++i) {
-            result[result.length - 1 - i] = array[i];
-        }
-        return result;
     }
 
     // ======================== Inner Classes ===============================
@@ -1068,22 +873,6 @@ public class PersistentList<T> implements Iterable<T> {
 
         public Iterator<Object> iterator() {
             return new ItemIterator(node);
-        }
-    }
-
-    private static class boolRef {
-        public boolean value;
-
-        public boolRef(boolean value) {
-            this.value = value;
-        }
-    }
-
-    private static class intRef {
-        public int value;
-
-        public intRef(int value) {
-            this.value = value;
         }
     }
 
@@ -1330,47 +1119,6 @@ public class PersistentList<T> implements Iterable<T> {
             location = new Stack<>();
             location.push(node);
             moveDownToLeaf();
-        }
-    }
-}
-
-
-/**
- * Mimics C#'s IEnumerator which is preferable in some cases (though not all).
- */
-class Enumerator<T> {
-    public Enumerator(Iterator<T> iter) {
-        this.iter = iter;
-    }
-
-    private Iterator<T> iter;
-    private Boolean hadNext = null;
-    private T current = null;
-
-    public boolean moveNext() {
-        advance();
-        return hadNext;
-    }
-
-    public boolean unStarted() {
-        return hadNext == null;
-    }
-
-    public boolean complete() {
-        return hadNext != null && !hadNext;
-    }
-
-    public T current() {
-        return current;
-    }
-
-    private void advance() {
-        if (iter.hasNext()) {
-            hadNext = true;
-            current = iter.next();
-        } else {
-            hadNext = false;
-            current = null;
         }
     }
 }

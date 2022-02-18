@@ -1,3 +1,5 @@
+package _trash;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -340,7 +342,7 @@ public class Main {
 
         System.out.println();
 
-//        final var ms = new MyString().append("phone number: ").append(999999999).append('\n').append("age: ").append(45).append('\n');
+//        final var ms = new _trash.MyString().append("phone number: ").append(999999999).append('\n').append("age: ").append(45).append('\n');
 //        System.out.println(ms);
 //        System.out.println();
 //        System.out.println(ms.items());

@@ -1,4 +1,4 @@
-// TODO better name
+package _trash;// TODO better name
 
 public class MyString {
     private final PersistentList<Object> items;
@@ -66,24 +66,24 @@ public class MyString {
     }
 }
 //
-//public class MyString {
-//    private final PersistentList<Object> items;
-//    private PersistentList<Character> charsCache = null;
+//public class _trash.MyString {
+//    private final _trash.PersistentList<Object> items;
+//    private _trash.PersistentList<Character> charsCache = null;
 //    private final Object charsCacheLock = new Object();
 //    private String stringCache = null;
 //    private final Object stringCacheLock = new Object();
 //
-//    public MyString(PersistentList<Object> items) {
+//    public _trash.MyString(_trash.PersistentList<Object> items) {
 //        this.items = items;
 //    }
-//    public MyString(){
-//        this(new PersistentList<>());
+//    public _trash.MyString(){
+//        this(new _trash.PersistentList<>());
 //    }
 //
-//    public MyString(String s) {
+//    public _trash.MyString(String s) {
 //        if (s == null) s = "";
 //
-//        var items = new PersistentList<Object>();
+//        var items = new _trash.PersistentList<Object>();
 //
 //        for (char c : s.toCharArray()) {
 //            items = items.add(c);
@@ -92,19 +92,19 @@ public class MyString {
 //        this.items = items;
 //    }
 //
-//    public MyString valueOf(Object o) {
+//    public _trash.MyString valueOf(Object o) {
 //        if (o instanceof String s) {
-//            return new MyString(s);
+//            return new _trash.MyString(s);
 //        } else {
-//            return new MyString(new PersistentList<>(new Object[]{o}));
+//            return new _trash.MyString(new _trash.PersistentList<>(new Object[]{o}));
 //        }
 //    }
 //
-//    public PersistentList<Character> chars() {
+//    public _trash.PersistentList<Character> chars() {
 //        if (charsCache != null) return charsCache;
 //        synchronized (charsCacheLock) {
 //            if (charsCache == null) {
-//                var chars = new PersistentList<Character>();
+//                var chars = new _trash.PersistentList<Character>();
 //                for (final var item : items)
 //                    for (final var c : String.valueOf(item).toCharArray()) {
 //                        chars = chars.add(c);
@@ -117,7 +117,7 @@ public class MyString {
 //        return charsCache;
 //    }
 //
-//    public PersistentList<Object> items() {
+//    public _trash.PersistentList<Object> items() {
 //        return items;
 //    }
 //
@@ -140,10 +140,10 @@ public class MyString {
 //    }
 //
 //
-//    public MyString append(Object item) {
+//    public _trash.MyString append(Object item) {
 //        if (item instanceof String s)
-//            return new MyString(items.add(new MyString(s)));
+//            return new _trash.MyString(items.add(new _trash.MyString(s)));
 //        else
-//            return new MyString(items.add(item));
+//            return new _trash.MyString(items.add(item));
 //    }
 //}
