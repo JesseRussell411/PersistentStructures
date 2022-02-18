@@ -97,17 +97,23 @@ class Utils_lists {
         }
     }
 
+
     public static Object[] without(Object[] original, int index, int length) {
         Objects.requireNonNull(original);
         requireIndexInBounds(index, original.length);
+
+        if (index + length < original.length){
+            return _without(original, index, length);
+        } else {
+            return _without(original, index, original.length - index);
+        }
+    }
+
+    private static Object[] _without(Object[] original, int index, int length) {
         if (length <= 0) return original;
 
-        final var removedPortion =
-                index + length >= original.length ?
-                        original.length - index :
-                        length;
 
-        final var result = new Object[original.length - removedPortion];
+        final var result = new Object[original.length - length];
 
         // copy preceding section
         for (int i = 0; i < index; i++) {
@@ -115,8 +121,8 @@ class Utils_lists {
         }
 
         // copy following section
-        for (int i = index; i < result.length; i++) {
-            result[i] = original[i + removedPortion];
+        for (int i = index + length + 1; i < result.length; i++) {
+            result[i] = original[i + length];
         }
 
         return result;
@@ -140,8 +146,42 @@ class Utils_lists {
         }
 
         // copy following section
-        for (int i = index + items.length; i < result.length; i++) {
+        for (int i = index + items.length + 1; i < result.length; i++) {
             result[i] = original[i - items.length];
+        }
+
+        return result;
+    }
+
+    public static Object[] withInsertion(Object[] original, int index, Object[] items, int start, int length) {
+        Objects.requireNonNull(original);
+        Objects.requireNonNull(items);
+        requireIndexInBounds(index, original.length);
+        requireIndexInBounds(start, items.length);
+
+        if (start + length < items.length) {
+            return _withInsertion(original, index, items, start, length);
+        } else {
+            return _withInsertion(original, index, items, start, items.length - start);
+        }
+    }
+
+    private static Object[] _withInsertion(Object[] original, int index, Object[] items, int start, int length) {
+        final var result = new Object[original.length + length];
+
+        // copy preceding section
+        for(int i = 0; i < index; i++){
+            result[i] = original[i];
+        }
+
+        // copy insertion
+        for(int i = index; i < length; i++){
+            result[i] = items[start + (i - index)];
+        }
+
+        // copy following section
+        for(int i = index + length + 1; i < result.length; i++){
+            result[i] = original[i - length];
         }
 
         return result;

@@ -69,12 +69,16 @@ public class ImmutableList<T> {
     //=====================================
     // multi item manipulation
     //=====================================
-    public ImmutableList<T> insert(int index, ImmutableList<T> items) {
+    public ImmutableList<T> insert(int index, ImmutableList<T> items, int itemsStart, int length) {
         Utils_lists.requireIndexInBounds(index, size());
         Objects.requireNonNull(items);
         if (items.size() <= 0) return this;
 
-        return new ImmutableList<>(insert(root, index, items.root));
+        return new ImmutableList<>(insert(root, index, items.root, itemsStart, length));
+    }
+
+    public ImmutableList<T> insert(int index, ImmutableList<T> items) {
+        return insert(index, items, 0, items.size());
     }
 
     public ImmutableList<T> get(int index, int length) {
@@ -95,11 +99,12 @@ public class ImmutableList<T> {
         Utils_lists.requireIndexInBounds(index, size());
         Objects.requireNonNull(items);
         if (items.size() <= 0) return this;
+        // TODO: create iterator, then toArray, then use array method for replace.
         throw new NotImplementedException();
     }
 
     public ImmutableList<T> append(ImmutableList<T> items, int itemsStart, int length) {
-        throw new NotImplementedException();
+        return insert(size(), items, itemsStart, length);
     }
 
     public ImmutableList<T> append(ImmutableList<T> items) {
@@ -124,9 +129,13 @@ public class ImmutableList<T> {
     private static Node add(Node node, int index, Object item) {
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
-                return balance(add(node, index, item));
+                return balance(new Branch(
+                        add(branch.left, index, item),
+                        branch.right));
             } else {
-                return balance(add(node, index - branch.left.itemCount(), item));
+                return balance(new Branch(
+                        branch.left,
+                        add(branch.right, index - branch.left.itemCount(), item)));
             }
         } else if (node instanceof Leaf leaf) {
             return buildNode(Utils_lists.withAddition(leaf.items, index, item));
@@ -148,9 +157,13 @@ public class ImmutableList<T> {
     private static Node remove(Node node, int index) {
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
-                return pruneAndBalance(remove(branch.left, index));
+                return pruneAndBalance(new Branch(
+                        remove(branch.left, index),
+                        branch.right));
             } else {
-                return pruneAndBalance(remove(branch.right, index - branch.left.itemCount()));
+                return pruneAndBalance(new Branch(
+                        branch.left,
+                        remove(branch.right, index - branch.left.itemCount())));
             }
         } else if (node instanceof Leaf leaf) {
             if (leaf.items.length <= 1) {
@@ -164,123 +177,185 @@ public class ImmutableList<T> {
     private static Node swap(Node node, int index, Object item) {
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
-                return swap(branch.left, index, item);
+                return new Branch(
+                        swap(branch.left, index, item),
+                        branch.right);
             } else {
-                return swap(branch.right, index - branch.left.itemCount(), item);
+                return new Branch(
+                        branch.left,
+                        swap(branch.right, index - branch.left.itemCount(), item));
             }
         } else if (node instanceof Leaf leaf) {
+            if (Objects.equals(leaf.items[index], item)) return leaf;
+
             return new Leaf(Utils_lists.withSwap(leaf.items, index, item));
         } else throw new NullPointerException();
     }
 
     // ====================================
-    // internal manipulation -- multi item -- ImmutableList
+    // internal manipulation -- multi item -- Node
     // ====================================
-    private Node insert(Node node, int index, Node items) {
-        if (items.itemCount() <= 0) return node;
-        else return _insert(node, index, items);
+    private static Node insert(Node node, int index, Node items, int start, int length) {
+        return insert(node, index, get(items, start, length));
     }
 
-    private Node _insert(Node node, int index, Node items) {
+    private static Node insert(Node node, int index, Node items) {
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
-                return balance(insert(branch.left, index, items));
+                return pruneAndBalance(new Branch(
+                        insert(branch.left, index, items),
+                        branch.right));
             } else {
-                return balance(insert(branch.right, index - branch.left.itemCount(), items));
+                return pruneAndBalance(new Branch(
+                        branch.left,
+                        insert(branch.right, index - branch.left.itemCount(), items)));
             }
         } else if (node instanceof Leaf leaf) {
             // TODO: optimize
             final var preceding = Arrays.copyOfRange(leaf.items, 0, index);
             final var following = Arrays.copyOfRange(leaf.items, index, leaf.items.length);
 
-            return insert(
-                    insert(items, 0, preceding),
+            return pruneAndBalance(insert(
+                    insert(items,
+                            0,
+                            preceding),
                     preceding.length + items.itemCount(),
-                    following);
+                    following));
         } else throw new NullPointerException();
     }
 
-    private Node get(Node node, int index, int length) {
+    private static Node get(Node node, int index, int length) {
+        if (index + length < node.itemCount()) {
+            return _get(node, index, length);
+        } else {
+            return _get(node, index, node.itemCount() - index);
+        }
+    }
+
+    private static Node _get(Node node, int index, int length) {
         if (length <= 0) return EMPTY_LEAF;
 
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
                 if (index + length < branch.left.itemCount()) {
-                    return get(branch.left, index, length);
+                    return _get(branch.left, index, length);
                 } else {
                     final var leftPortion = branch.left.itemCount() - index;
-                    return balance(new Branch(
-                            get(branch.left, index, leftPortion),
-                            get(branch.right, 0, length - leftPortion)));
+                    return pruneAndBalance(balance(new Branch(
+                            _get(branch.left, index, leftPortion),
+                            _get(branch.right, 0, length - leftPortion))));
                 }
             } else {
-                return get(branch.right, index - branch.left.itemCount(), length);
+                return _get(branch.right, index - branch.left.itemCount(), length);
             }
         } else if (node instanceof Leaf leaf) {
             return new Leaf(Arrays.copyOfRange(leaf.items, index, index + length));
         } else throw new NullPointerException();
     }
 
-    private Node remove(Node node, int index, int length) {
-        if (node instanceof Branch branch) {
-            if (index < branch.left.itemCount()) {
-                if (index + length < branch.left.itemCount()) {
-                    return pruneAndBalance(remove(branch.left, index, length));
-                } else {
-                    final var leftPortion = branch.left.itemCount() - index;
-                    return pruneAndBalance(new Branch(
-                            remove(branch.left, index, leftPortion),
-                            remove(branch.right, 0, length - leftPortion)));
-                }
-            } else {
-                return pruneAndBalance(
-                        remove(branch.right, index - branch.left.itemCount(), length));
-            }
-        } else if (node instanceof Leaf leaf) {
-            if (index == 0 && leaf.items.length <= length) return EMPTY_LEAF;
+    private static Node remove(Node node, int index, int length) {
+        if (length <= 0) return node;
+        if (index <= 0 && length >= node.itemCount()) return EMPTY_LEAF;
 
-            return new Leaf(Utils_lists.without(leaf.items, index, length));
+        if (index + length < node.itemCount()) {
+            return _remove(node, index, length);
+        } else {
+            return _remove(node, index, node.itemCount() - index);
         }
     }
 
-    private Node replace(Node node, int index, Node items, int start, int length) {
+    private static Node _remove(Node node, int index, int length) {
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
                 if (index + length < branch.left.itemCount()) {
-                    return replace(branch.left, index, items, start, length);
+                    return pruneAndBalance(
+                            new Branch(
+                                    _remove(branch.left, index, length),
+                                    branch.right));
                 } else {
                     final var leftPortion = branch.left.itemCount() - index;
-                    return new Branch(
-                            replace(branch.left, index, items, start, leftPortion),
-                            replace(branch.right, 0, items, start + leftPortion, length - leftPortion));
+                    return pruneAndBalance(new Branch(
+                            _remove(branch.left, index, leftPortion),
+                            _remove(branch.right, 0, length - leftPortion)));
                 }
             } else {
-                return replace(branch.right, index - branch.left.itemCount(), items, start, length);
+                return pruneAndBalance(new Branch(
+                        branch.left,
+                        _remove(branch.right, index - branch.left.itemCount(), length)));
             }
         } else if (node instanceof Leaf leaf) {
-            if (length <= 0) return leaf;
+            if (length == leaf.items.length) return EMPTY_LEAF;
 
-            return new Leaf(Utils_lists.withReplacement()
+            return new Leaf(Utils_lists.without(leaf.items, index, length));
         } else throw new NullPointerException();
     }
 
     // ====================================
     // internal manipulation -- multi item -- Array
     // ====================================
-    private Node insert(Node node, int index, Object[] items) {
-        if (items.length <= 0) return node;
-        else return _insert(node, index, items);
+    private static Node insert(Node node, int index, Object[] items) {
+        return insert(node, index, items, 0, items.length);
     }
 
-    private Node _insert(Node node, int index, Object[] items) {
+    private static Node insert(Node node, int index, Object[] items, int start, int length) {
+        if (start + length < items.length) {
+            return _insert(node, index, items, start, length);
+        } else {
+            return _insert(node, index, items, start, items.length - start);
+        }
+    }
+
+    private static Node _insert(Node node, int index, Object[] items, int start, int length) {
+        if (length == 0) return node;
+
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
-                return balance(insert(branch.left, index, items));
+                return balance(new Branch(
+                        _insert(branch.left, index, items, start, length),
+                        branch.right));
             } else {
-                return balance(insert(branch.right, index - branch.left.itemCount(), items));
+                return balance(new Branch(
+                        branch.left,
+                        _insert(branch.right, index - branch.left.itemCount(), items, start, length)));
             }
         } else if (node instanceof Leaf leaf) {
-            return buildNode(Utils_lists.withInsertion(leaf.items, index, items));
+            return buildNode(
+                    Utils_lists.withInsertion(leaf.items, index, items, start, length));
+        } else throw new NullPointerException();
+    }
+
+    private static Node replace(Node node, int index, Object[] items, int start, int length) {
+        if (start + length >= items.length) {
+            return _replace(node, index, items, start, items.length - start);
+        } else {
+            return _replace(node, index, items, start, length);
+        }
+    }
+
+    private static Node _replace(Node node, int index, Object[] items, int start, int length) {
+        if (length <= 0) return node;
+
+        if (node instanceof Branch branch) {
+            if (index < branch.left.itemCount()) {
+                if (index + length < branch.left.itemCount()) {
+                    return new Branch(
+                            _replace(branch.left, index, items, start, length),
+                            branch.right);
+                } else {
+                    final var leftPortion = branch.left.itemCount() - index;
+                    return new Branch(
+                            _replace(branch.left, index, items, start, leftPortion),
+                            _replace(branch.right, 0, items, start + leftPortion, length - leftPortion));
+                }
+            } else {
+                return new Branch(
+                        branch.left,
+                        _replace(branch.right, index - branch.left.itemCount(), items, start, length));
+            }
+        } else if (node instanceof Leaf leaf) {
+            final var newItems = new Object[leaf.items.length];
+            System.arraycopy(items, start, newItems, index, length);
+            return new Leaf(newItems);
         } else throw new NullPointerException();
     }
 
