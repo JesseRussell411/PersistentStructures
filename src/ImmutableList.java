@@ -238,7 +238,8 @@ public class ImmutableList<T> {
         if (node instanceof Branch branch) {
             if (index < branch.left.itemCount()) {
                 if (index + length < branch.left.itemCount()) {
-                    return _get(branch.left, index, length);
+                    return pruneAndBalance(
+                            _get(branch.left, index, length));
                 } else {
                     final var leftPortion = branch.left.itemCount() - index;
                     return pruneAndBalance(balance(new Branch(
@@ -246,7 +247,8 @@ public class ImmutableList<T> {
                             _get(branch.right, 0, length - leftPortion))));
                 }
             } else {
-                return _get(branch.right, index - branch.left.itemCount(), length);
+                return pruneAndBalance(
+                        _get(branch.right, index - branch.left.itemCount(), length));
             }
         } else if (node instanceof Leaf leaf) {
             return new Leaf(Arrays.copyOfRange(leaf.items, index, index + length));
