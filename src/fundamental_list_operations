@@ -1,0 +1,30 @@
+   -single-        -multi-
+    put             append
+    pop             pop
+    push            prepend
+    pull            pull{
+    head            head
+    tail            tail
+    get             extract
+    add             insert
+    swap            replace
+    remove          remove
+
+
+insert
+remove
+
+
+
+ -multi-                  -single
+  get(index, length)       get(index)
+  insert(index, items)     add(index, item)
+  remove(index, length)    remove(index)
+  replace(index, items)    swap(index, item)
+
+  append(items)            put(item)
+  pop(length)              pop()
+  prepend(items)           push(item)
+  pull(length)             pull()
+
+                partition(count)
