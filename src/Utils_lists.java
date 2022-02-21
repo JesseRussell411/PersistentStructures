@@ -388,10 +388,10 @@ class Utils_lists {
         return get(original, index, false);
     }
 
-    public static Object get(Object[] original, int index, boolean reversed) {
-        Objects.requireNonNull(original);
-        if (0 <= index && index < original.length) {
-            return _get(original, index, reversed);
+    public static Object get(Object[] from, int index, boolean reversed) {
+        Objects.requireNonNull(from);
+        if (0 <= index && index < from.length) {
+            return _get(from, index, reversed);
         } else {
             return null;
         }
