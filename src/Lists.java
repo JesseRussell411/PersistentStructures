@@ -1,9 +1,78 @@
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
  * Functions for manipulating lists.
  */
 class Lists {
+    // ===================================
+    // immutable single item manipulation
+    // ===================================
+    // get
+    public static Object get(Object[] src, int srcPos) {
+        return get(src, srcPos, false);
+    }
+
+    public static Object get(Object[] src, int srcPos, boolean srcReversed) {
+        Objects.requireNonNull(src);
+        if (0 <= srcPos && srcPos < src.length) {
+            return src[srcReversed ? reverseIndex(srcPos, src.length) : srcPos];
+        } else {
+            throw new IndexOutOfBoundsException(srcPos);
+        }
+    }
+
+    // replace
+    public static Object[] swap(Object[] src, int srcPos, Object item) {
+        return swap(src, srcPos, item, false, false);
+    }
+
+    public static Object[] swap(Object[] src, int srcPos, Object item, boolean srcReversed) {
+        return swap(src, srcPos, item, srcReversed, false);
+    }
+
+    public static Object[] swap(Object[] src, int srcPos, Object item, boolean srcReversed, boolean outReversed) {
+        Objects.requireNonNull(src);
+        if (0 <= srcPos && srcPos < src.length) {
+            final var result = new Object[src.length];
+
+            // copy preceding
+            arraycopy(src, 0, result, 0, srcPos, srcReversed, outReversed);
+            // copy replacement
+            result[outReversed ? reverseIndex(srcPos, result.length) : srcPos] = item;
+            // copy proceeding
+            arraycopy(src, srcPos + 1, result, srcPos + 1, result.length - (srcPos + 1), srcReversed, outReversed);
+
+            return result;
+        } else return src;
+    }
+
+    // insert
+    public static Object[] add(Object[] src, int srcPos, Object item) {
+        return add(src, srcPos, item, false, false);
+    }
+
+    public static Object[] add(Object[] src, int srcPos, Object item, boolean srcReversed) {
+        return add(src, srcPos, item, srcReversed, false);
+    }
+
+    public static Object[] add(Object[] src, int srcPos, Object item, boolean srcReversed, boolean outReversed) {
+        Objects.requireNonNull(src);
+        if (0 <= srcPos && srcPos <= src.length) {
+            final var result = new Object[src.length + 1];
+
+            // copy preceding
+            arraycopy(src, 0, result, 0, srcPos, srcReversed, outReversed);
+            // copy insertion
+            result[outReversed ? reverseIndex(srcPos, result.length) : srcPos] = item;
+            // copy proceeding
+            arraycopy(src, srcPos, result, srcPos + 1, result.length - (srcPos + 1), srcReversed, outReversed);
+
+            return result;
+        } else return src;
+    }
+
     // ==================================
     // immutable multi item manipulation
     // ==================================
@@ -35,7 +104,7 @@ class Lists {
             // copy preceding
             arraycopy(src, 0, result, 0, bound.pos, srcReversed, outReversed);
             // copy proceeding
-            arraycopy(src, bound.pos + length, result, bound.pos, result.length - (bound.pos + 1), srcReversed, outReversed);
+            arraycopy(src, bound.pos + length, result, bound.pos, result.length - (bound.pos), srcReversed, outReversed);
 
             return result;
         } else if (bound.length < 0) {
@@ -56,11 +125,6 @@ class Lists {
     }
 
     // get
-    public static Object[] get(Object[] src) {
-        Objects.requireNonNull(src);
-        return get(src, 0, src.length, false, false);
-    }
-
     public static Object[] get(Object[] src, int srcPos, int length) {
         return get(src, srcPos, length, false, false);
     }
@@ -158,6 +222,7 @@ class Lists {
         Objects.requireNonNull(src);
         final var bound = bindSrcPosAndDestPos(0, srcPos, src.length, 0, destPos, dest.length, length);
         if (bound == null) return dest;
+        if (bound.length == 0) return dest;
 
         final var result = new Object[dest.length];
 
@@ -177,7 +242,7 @@ class Lists {
             // copy proceeding
             final var destEnd = bound.destPos + length;
             arraycopy(dest, destEnd, result, destEnd, result.length - destEnd, destReversed, outReversed);
-        } else if (bound.length < 0) {
+        } else {
             if (bound.destPos + bound.length < -1) {
                 length = -1 - bound.destPos;
             }
@@ -193,7 +258,7 @@ class Lists {
             arraycopy(src, bound.srcPos, result, bound.destPos, length, srcReversed, outReversed);
             // copy proceeding
             arraycopy(dest, bound.destPos + 1, result, bound.destPos + 1, result.length - (bound.destPos + 1), destReversed, outReversed);
-        } else return dest;
+        }
 
         return result;
     }
@@ -257,7 +322,7 @@ class Lists {
             boolean outReversed) {
         Objects.requireNonNull(dest);
         Objects.requireNonNull(src);
-        final var bound = bindSrcPosAndDestPos(0, srcPos, src.length, 0, destPos, dest.length, length);
+        final var bound = bindSrcPosAndDestPos(0, srcPos, src.length, 0, destPos, dest.length + 1, length);
         if (bound == null) return dest;
 
         if (bound.length > 0) {
@@ -272,7 +337,7 @@ class Lists {
             arraycopy(src, bound.srcPos, result, bound.destPos, length, srcReversed, outReversed);
             // copy proceeding
             final var outEnd = bound.destPos + length;
-            arraycopy(dest, bound.destPos + 1, result, outEnd, result.length - outEnd, destReversed, outReversed);
+            arraycopy(dest, bound.destPos, result, outEnd, result.length - outEnd, destReversed, outReversed);
 
             return result;
         } else if (bound.length < 0) {
@@ -285,10 +350,10 @@ class Lists {
             // copy preceding
             arraycopy(dest, 0, result, 0, bound.destPos, destReversed, outReversed);
             // copy insertion
-            arraycopy(src, bound.srcPos, result, bound.destPos + length - 1, length, srcReversed, outReversed);
+            arraycopy(src, bound.srcPos, result, bound.destPos + (-length) - 1, length, srcReversed, outReversed);
             // copy proceeding
             final var outEnd = bound.destPos + (-length);
-            arraycopy(dest, bound.destPos + 1, result, outEnd, result.length - outEnd, destReversed, outReversed);
+            arraycopy(dest, bound.destPos, result, outEnd, result.length - outEnd, destReversed, outReversed);
 
             return result;
         } else return dest;
@@ -345,6 +410,44 @@ class Lists {
             s += srcReversed ? -direction : direction;
         }
     }
+
+    // ====== misc ======
+    public static Object[][] partition(Object[] src, int size, boolean srcReversed, boolean reversePartitions, boolean outReversed) {
+        Objects.requireNonNull(src);
+        if (size <= 0) throw new IllegalArgumentException("size must be at least 1.");
+        if (size >= src.length) return new Object[][]{src};
+
+        final var remainder = src.length % size;
+        final var count = (src.length / size) + (remainder > 0 ? 1 : 0);
+        final var result = new Object[count][];
+
+        // copy whole partitions
+        for (int i = 0; i < count - 1; i++) {
+            int index = outReversed ? reverseIndex(i, result.length) : i;
+            result[index] = get(src, i * size, size, srcReversed, reversePartitions);
+        }
+
+        // copy remainder
+        if (remainder > 0) {
+            result[outReversed ? 0 : count - 1] = get(src, (count - 1) * size, remainder, srcReversed, reversePartitions);
+        }
+
+        return result;
+    }
+
+    public static Object[] copy(Object[] src, boolean srcReversed, boolean outReversed) {
+        Objects.requireNonNull(src);
+        return get(src, 0, src.length, srcReversed, outReversed);
+    }
+
+    public static Object[] sorted(Object[] src, Comparator<Object> comparator, boolean outReversed) {
+        Objects.requireNonNull(src);
+
+        return Arrays.stream(src).sorted(
+                outReversed ? (a, b) -> comparator.compare(b, a) : comparator
+        ).toArray();
+    }
+
 
     // ===================
     // index manipulation
@@ -458,17 +561,37 @@ class Lists {
         return new SrcPos_DestPos_Length(srcPos, destPos, length);
     }
 
-    private static int reverseIndex(int index, int length) {
+    public static int reverseIndex(int index, int length) {
         return length - 1 - index;
     }
 
-    private static int sign(int num) {
+    public static int sign(int num) {
         if (num < 0) {
             return -1;
         } else if (num > 0) {
             return 1;
         } else {
             return 0;
+        }
+    }
+
+    public static boolean boundsCheck(int index, int length) {
+        return boundsCheck(0, index, length);
+    }
+
+    public static boolean boundsCheck(int lower, int index, int upper) {
+        return lower <= index && index < upper;
+    }
+
+    public static int requireIndexInBounds(int index, int length) {
+        return requireIndexInBounds(0, index, length);
+    }
+
+    public static int requireIndexInBounds(int lower, int index, int upper) {
+        if (!boundsCheck(lower, index, upper)) {
+            throw new IndexOutOfBoundsException(index);
+        } else {
+            return index;
         }
     }
 

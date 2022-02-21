@@ -11,7 +11,9 @@ public class Main {
         System.out.println("test");
         System.out.println(arr);
         arr = arr.put(14);
+        System.out.println(arr);
         arr = arr.insert(arr.size() - 1, new Integer[]{13, 12, 11, 10, 34}, 1, 4, true);
+        System.out.println(arr);
         arr = arr.insert(4, new Integer[]{-90, -88});
         System.out.println(arr);
         arr = arr.remove(4, 2);
@@ -19,6 +21,7 @@ public class Main {
         System.out.println(arr);
         arr = arr.remove(7, -2);
         System.out.println(arr);
+        System.out.println("==");
         arr = arr.insert(5, new Integer[]{34534, -9, -8}, 1, -20, true);
         System.out.println(arr);
         arr = arr.remove(7, -2);
