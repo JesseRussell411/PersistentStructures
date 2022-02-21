@@ -2,6 +2,74 @@ import java.util.Arrays;
 import java.util.Objects;
 
 class Utils_lists {
+    private static int reverseIndex(int index, int length) {
+        return length - 1 - index;
+    }
+
+    private static int sign(int num) {
+        if (num < 0) {
+            return -1;
+        } else if (num > 0) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    public static void arrayCopy(Object[] src, int srcPos, Object[] dest, int destPos, int length) {
+        arrayCopy(src, srcPos, dest, destPos, length, false, false);
+    }
+
+    public static void arrayCopy(Object[] src, int srcPos, Object[] dest, int destPos, int length, boolean srcReversed, boolean destReversed) {
+        Objects.requireNonNull(src);
+        Objects.requireNonNull(dest);
+
+        final var bound = bindDestPosAndSrcPos(dest.length, src.length, destPos, srcPos, length);
+        if (bound == null) return;
+
+        if (length >= 0) {
+            final var destLengthOverflow = (bound.destPos + bound.length) - dest.length;
+            final var srcLengthOverflow = (bound.srcPos + bound.length) - src.length;
+            if (destLengthOverflow > 0 || srcLengthOverflow > 0) {
+                if (destLengthOverflow > srcLengthOverflow) {
+                    _arrayCopy(src, bound.srcPos, dest, bound.destPos, dest.length - bound.destPos, srcReversed, destReversed);
+                } else {
+                    _arrayCopy(src, bound.srcPos, dest, bound.destPos, src.length - bound.srcPos, srcReversed, destReversed);
+                }
+            } else {
+                _arrayCopy(src, bound.srcPos, dest, bound.destPos, bound.length, srcReversed, destReversed);
+            }
+        } else {
+            final var destLengthUnderflow = bound.destPos + length + 1;
+            final var srcLengthUnderflow = bound.srcPos + length + 1;
+            if (destLengthUnderflow < 0 || srcLengthUnderflow < 0) {
+                if (destLengthUnderflow < srcLengthUnderflow) {
+                    _arrayCopy(src, bound.srcPos, dest, bound.destPos, -(destPos + 1), srcReversed, destReversed);
+                } else {
+                    _arrayCopy(src, bound.srcPos, dest, bound.destPos, -(srcPos + 1), srcReversed, destReversed);
+                }
+            } else {
+                _arrayCopy(src, bound.srcPos, dest, bound.destPos, bound.length, srcReversed, destReversed);
+            }
+        }
+
+
+    }
+
+    public static void _arrayCopy(Object[] src, int srcPos, Object[] dest, int destPos, int length, boolean srcReversed, boolean destReversed) {
+
+        int s = srcReversed ? reverseIndex(srcPos, src.length) : srcPos;
+        int d = destReversed ? reverseIndex(destPos, dest.length) : destPos;
+        int direction = sign(length);
+
+        for (int l = 0; l < Math.abs(length); l++) {
+            dest[d] = src[s];
+            d += destReversed ? -direction : direction;
+            s += srcReversed ? -direction : direction;
+        }
+    }
+
+
     public static int requireIndexInBounds(int index, int length) {
         if (0 <= index || index < length) {
             return index;
@@ -17,49 +85,53 @@ class Utils_lists {
             throw new IllegalArgumentException("length must be 0 or greater.");
         }
     }
-
-    public static class At_Start_Length {
-        public final int at;
-        public final int start;
+    public static class DestPos_SrcPos_Length {
+        public final int destPos;
+        public final int srcPos;
         public final int length;
 
-        public At_Start_Length(int at, int start, int length) {
-            this.at = at;
-            this.start = start;
+        public DestPos_SrcPos_Length(int destPos, int srcPos, int length) {
+            this.destPos = destPos;
+            this.srcPos = srcPos;
             this.length = length;
         }
     }
 
-    public static At_Start_Length bindAt_Start_Length(int dstLength, int srcLength, int at, int start, int length) {
-        final var initStart = start;
+    public static DestPos_SrcPos_Length bindDestPosAndSrcPos(int destLength, int srcLength, int destPos, int srcPos, int length) {
+        if (length >= 0) {
+            if (destPos < 0) {
+                srcPos -= destPos;
+                length += destPos;
+                destPos = 0;
+            }
 
-        if (length < 0) {
-            start += length;
-            length = Math.abs(length);
+            if (srcPos < 0) {
+                destPos -= srcPos;
+                length += srcPos;
+                srcPos = 0;
+            }
+
+            if (length < 0) return null;
+            if (srcPos >= srcLength) return null;
+            if (destPos >= destLength) return null;
+        } else {
+            if (destPos >= destLength) {
+                srcPos -= destPos - (destLength - 1);
+                length += destPos - (destLength - 1);
+                destPos = destLength - 1;
+            }
+
+            if (srcPos >= srcLength) {
+                destPos -= srcPos - (srcLength - 1);
+                length += srcPos - (srcLength - 1);
+                srcPos = srcLength - 1;
+            }
+
+            if (length > 0) return null;
+            if (srcPos < 0) return null;
+            if (destPos < 0) return null;
         }
-
-        if (at < 0) {
-            start -= at;
-            at = 0;
-        }
-
-        if (start < 0) {
-            at -= start;
-            start = 0;
-        }
-
-        if (at > dstLength) return null;
-        if (start > srcLength) return null;
-
-        length += initStart - start;
-
-        if (length < 0) return null;
-
-        if (start + length > srcLength) {
-            length = srcLength - start;
-        }
-
-        return new At_Start_Length(at, start, length);
+        return new DestPos_SrcPos_Length(destPos, srcPos, length);
     }
 
     public static class Start_Length {
@@ -97,129 +169,159 @@ class Utils_lists {
     // Copy Modification -- array -- multi -- array
     // =============================================
     //remove
-    public static Object[] without(Object[] original, int start, int length) {
+    public static Object[] without(Object[] original, int start, int length, boolean reversed) {
         Objects.requireNonNull(original);
 
         final var bound = bindStart_Length(original.length, start, length);
         if (bound != null) {
-            return _without(original, bound.start, bound.length);
+            return _without(original, bound.start, bound.length, reversed);
         } else {
             return original;
         }
     }
 
-    private static Object[] _without(Object[] original, int start, int length) {
+    private static Object[] _without(Object[] original, int start, int length, boolean reversed) {
         final var result = new Object[original.length - length];
 
         // copy preceding
-        System.arraycopy(original, 0, result, 0, start);
+        arrayCopy(original, 0, result, 0, start, reversed, false);
         // copy following
         final var followingStart = start + length + 1;
         final var followingLength = result.length - followingStart;
-        System.arraycopy(original, followingStart, result, start, followingLength);
+        arrayCopy(original, followingStart, result, start, followingLength, reversed, false);
 
         return result;
     }
 
     //get
     public static Object[] get(Object[] from) {
-        return get(from, 0, from.length);
+        return get(from, 0, from.length, false);
     }
 
-    public static Object[] get(Object[] from, int start, int length) {
+    public static Object[] get(Object[] from, int start, int length, boolean reversed) {
         Objects.requireNonNull(from);
         final var bound = bindStart_Length(from.length, start, length);
         if (bound != null) {
-            return _get(from, bound.start, bound.length);
+            return _get(from, bound.start, bound.length, reversed);
         } else {
             return new Object[0];
         }
     }
 
-    private static Object[] _get(Object[] from, int start, int length) {
+    private static Object[] _get(Object[] from, int start, int length, boolean reversed) {
         final var result = new Object[length];
-        System.arraycopy(from, start, result, 0, length);
+        arrayCopy(from, start, result, 0, length, reversed, false);
         return result;
     }
 
     //insert
-    public static Object[] withInsertion(Object[] original, int at, Object[] insertion) {
-        return withInsertion(original, at, insertion, 0, insertion.length);
+    public static Object[] withInsertion(Object[] dest, int at, Object[] src) {
+        return withInsertion(dest, at, src, 0, src.length, false, false);
     }
 
     public static Object[] withInsertion(Object[] original, int at, Object[] insertion, int start) {
-        return withInsertion(original, at, insertion, start, insertion.length - start);
+        return withInsertion(original, at, insertion, start, insertion.length - start, false, false);
     }
 
-    public static Object[] withInsertion(Object[] original, int at, Object[] insertion, int start, int length) {
+    public static Object[] withInsertion(
+            Object[] original,
+            int at,
+            Object[] insertion,
+            int start,
+            int length,
+            boolean srcReversed,
+            boolean destReversed) {
         Objects.requireNonNull(original);
         Objects.requireNonNull(insertion);
 
         final var bound = bindAt_Start_Length(original.length, insertion.length, at, start, length);
         if (bound != null) {
-            return _withInsertion(original, bound.at, insertion, bound.start, bound.length);
+            return _withInsertion(original, bound.at, insertion, bound.start, bound.length, srcReversed, destReversed);
         } else {
             return original;
         }
     }
 
-    private static Object[] _withInsertion(Object[] original, int at, Object[] insertion, int start, int length) {
-        final var result = new Object[original.length + length];
+    private static Object[] _withInsertion(
+            Object[] dest,
+            int at,
+            Object[] src,
+            int start,
+            int length,
+            boolean srcReversed,
+            boolean destReversed) {
+        final var result = new Object[dest.length + length];
 
         // copy preceding
-        System.arraycopy(original, 0, result, 0, at);
+        arrayCopy(dest, 0, result, 0, at, destReversed, false);
 
         // copy insertion
-        System.arraycopy(insertion, start, result, at, length);
+        arrayCopy(src, start, result, at, length, srcReversed, false);
 
         // copy following
         final var followingStart = at + length;
         final var followingLength = result.length - followingStart;
-        System.arraycopy(original, at, result, followingStart, followingLength);
+        arrayCopy(dest, at, result, followingStart, followingLength, destReversed, false);
 
         return result;
     }
 
     //set
     public static Object[] withReplacement(Object[] original, int at, Object[] replacement) {
-        return withInsertion(original, at, replacement, 0, replacement.length);
+        return withInsertion(original, at, replacement, 0, replacement.length, false, false);
 
     }
 
     public static Object[] withReplacement(Object[] original, int at, Object[] replacement, int start) {
-        return withInsertion(original, at, replacement, start, replacement.length - start);
+        return withInsertion(original, at, replacement, start, replacement.length - start, false, false);
     }
 
-    public static Object[] withReplacement(Object[] original, int at, Object[] replacement, int start, int length) {
-        Objects.requireNonNull(original);
-        Objects.requireNonNull(replacement);
+    public static Object[] withReplacement(
+            Object[] dest,
+            int at,
+            Object[] src,
+            int start,
+            int length,
+            boolean srcReversed,
+            boolean destReversed) {
+        Objects.requireNonNull(dest);
+        Objects.requireNonNull(src);
 
-        final var bound = bindAt_Start_Length(original.length, replacement.length, at, start, length);
+        final var bound = bindAt_Start_Length(dest.length, src.length, at, start, length);
         if (bound != null) {
             return _withReplacement(
-                    original,
+                    dest,
                     bound.at,
-                    replacement,
+                    src,
                     bound.start,
                     Math.min(
                             bound.length,
-                            original.length - bound.at));
+                            dest.length - bound.at),
+                    srcReversed,
+                    destReversed);
         } else {
-            return original;
+            return dest;
         }
     }
 
-    private static Object[] _withReplacement(Object[] original, int at, Object[] replacement, int start, int length) {
-        final var result = new Object[original.length];
+    private static Object[] _withReplacement(
+            Object[] dest,
+            int at,
+            Object[] src,
+            int start,
+            int length,
+            boolean srcReversed,
+            boolean destReversed) {
+        final var result = new Object[dest.length];
 
         // copy preceding
-        System.arraycopy(original, start, result, 0, at);
+        arrayCopy(dest, start, result, 0, at, destReversed, false);
         // copy replacement
-        System.arraycopy(replacement, start, result, at, length);
+        arrayCopy(src, start, result, at, length, srcReversed, false);
         // copy following
         final var followingStart = at + length;
         final var followingLength = result.length - followingStart;
-        System.arraycopy(original, followingStart, result, followingStart, followingLength);
+        arrayCopy(dest, followingStart, result, followingStart, followingLength, destReversed, false);
 
         return result;
     }
@@ -229,82 +331,98 @@ class Utils_lists {
     // ======================================
     //remove
     public static Object[] without(Object[] original, int index) {
+        return without(original, index, false);
+    }
+
+    public static Object[] without(Object[] original, int index, boolean reversed) {
         Objects.requireNonNull(original);
         if (0 <= index && index < original.length) {
-            return _without(original, index);
+            return _without(original, index, reversed);
         } else {
             return original;
         }
     }
 
-    private static Object[] _without(Object[] original, int index) {
+    private static Object[] _without(Object[] original, int index, boolean reversed) {
         final var result = new Object[original.length - 1];
 
         // copy preceding
-        System.arraycopy(original, 0, result, 0, index);
+        arrayCopy(original, 0, result, 0, index, reversed, false);
         // copy following
         final var followingStart = index + 1;
         final var followingLength = original.length - followingStart;
-        System.arraycopy(original, followingStart, result, index, followingLength);
+        arrayCopy(original, followingStart, result, index, followingLength, reversed, false);
 
         return result;
     }
 
     //get
     public static Object get(Object[] original, int index) {
+        return get(original, index, false);
+    }
+
+    public static Object get(Object[] original, int index, boolean reversed) {
         Objects.requireNonNull(original);
         if (0 <= index && index < original.length) {
-            return _get(original, index);
+            return _get(original, index, reversed);
         } else {
             return null;
         }
     }
 
-    private static Object _get(Object[] original, int index) {
-        return original[index];
+    private static Object _get(Object[] original, int index, boolean reversed) {
+        return original[reversed ? reverseIndex(index, original.length) : index];
     }
 
     //insert
     public static Object[] withAddition(Object[] original, int at, Object addition) {
+        return withAddition(original, at, addition, false);
+    }
+
+    public static Object[] withAddition(Object[] original, int at, Object addition, boolean reversed) {
         if (0 <= at && at <= original.length) {
-            return _withAddition(original, at, addition);
+            return _withAddition(original, at, addition, reversed);
         } else {
             return original;
         }
     }
 
-    private static Object[] _withAddition(Object[] original, int at, Object addition) {
+    private static Object[] _withAddition(Object[] original, int at, Object addition, boolean reversed) {
         final var result = new Object[original.length + 1];
 
         // copy preceding
-        System.arraycopy(original, 0, result, 0, at);
+        arrayCopy(original, 0, result, 0, at, reversed, false);
         // copy addition
         result[at] = addition;
         // copy following
-        System.arraycopy(original, at, result, at + 1, original.length - at);
+        arrayCopy(original, at, result, at + 1, original.length - at, reversed, false);
 
         return result;
     }
 
     //set
     public static Object[] withSwap(Object[] original, int at, Object replacement) {
+        return withSwap(original, at, replacement, false);
+    }
+
+    public static Object[] withSwap(Object[] original, int at, Object replacement, boolean reversed) {
         Objects.requireNonNull(original);
         if (0 <= at && at < original.length) {
-            return _withSwap(original, at, replacement);
+            return _withSwap(original, at, replacement, reversed);
         } else {
             return original;
         }
     }
 
-    private static Object[] _withSwap(Object[] original, int at, Object replacement) {
+    private static Object[] _withSwap(Object[] original, int at, Object replacement, boolean reversed) {
         final var result = new Object[original.length];
 
         // copy preceding
-        System.arraycopy(original, 0, result, 0, at);
+        arrayCopy(original, 0, result, 0, at, reversed, false);
         // copy replacement
         result[at] = replacement;
         // copy following
-        System.arraycopy(original, at + 1, result, at + 1, original.length - at - 1);
+        arrayCopy(original, at + 1, result, at + 1, original.length - at - 1, reversed, false);
 
         return result;
     }
