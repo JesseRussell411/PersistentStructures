@@ -170,30 +170,30 @@ public class ImmutableArray<T> implements Iterable<T> {
     // ===================================
     // remove
     public ImmutableArray<T> remove(int index) {
-        final var result = Utils_lists.without(data.items, index, data.reversed);
+        final var result = Lists.without(data.items, index, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
 
     // get
     public T get(int index) {
-        Utils_lists.requireIndexInBounds(index, size());
+        Lists.requireIndexInBounds(index, size());
 
-        return (T) Utils_lists.get(data.items, index, data.reversed);
+        return (T) Lists.get(data.items, index, data.reversed);
     }
 
     // insert
     public ImmutableArray<T> add(int index, T item) {
-        Utils_lists.requireIndexInBounds(index, size() + 1);
-        final var result = Utils_lists.withAddition(data.items, index, item, data.reversed);
+        Lists.requireIndexInBounds(index, size() + 1);
+        final var result = Lists.withAddition(data.items, index, item, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
 
     // swap
     public ImmutableArray<T> swap(int index, T with) {
-        Utils_lists.requireIndexInBounds(index, size());
-        final var result = Utils_lists.withSwap(data.items, index, with, data.reversed);
+        Lists.requireIndexInBounds(index, size());
+        final var result = Lists.withSwap(data.items, index, with, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -236,14 +236,14 @@ public class ImmutableArray<T> implements Iterable<T> {
     // ==========================================
     //remove
     public ImmutableArray<T> remove(int start, int length) {
-        final var result = Utils_lists.without(data.items, start, length, data.reversed);
+        final var result = Lists.without(data.items, start, length, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
 
     //get
     public ImmutableArray<T> get(int start, int length) {
-        final var result = Utils_lists.get(data.items, start, length, data.reversed);
+        final var result = Lists.get(data.items, start, length, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -261,7 +261,7 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     public ImmutableArray<T> insert(int index, ImmutableArray<T> items, int start, int length) {
         Objects.requireNonNull(items);
-        final var result = Utils_lists.withInsertion(
+        final var result = Lists.withInsertion(
                 data.items,
                 index,
                 items.data.items,
@@ -286,7 +286,7 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     public ImmutableArray<T> replace(int index, ImmutableArray<T> items, int start, int length) {
         Objects.requireNonNull(items);
-        final var result = Utils_lists.withReplacement(data.items, index, items.data.items, start, length, items.data.reversed, data.reversed);
+        final var result = Lists.withReplacement(data.items, index, items.data.items, start, length, items.data.reversed, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -371,7 +371,7 @@ public class ImmutableArray<T> implements Iterable<T> {
     }
 
     public ImmutableArray<T> insert(int at, T[] items, int start, int length, boolean reverseItems) {
-        final var result = Utils_lists.withInsertion(data.items, at, items, start, length, reverseItems, data.reversed);
+        final var result = Lists.withInsertion(data.items, at, items, start, length, reverseItems, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -392,7 +392,7 @@ public class ImmutableArray<T> implements Iterable<T> {
     }
 
     public ImmutableArray<T> replace(int at, T[] with, int start, int length, boolean reverseWith) {
-        final var result = Utils_lists.withReplacement(data.items, at, with, start, length, reverseWith, data.reversed);
+        final var result = Lists.withReplacement(data.items, at, with, start, length, reverseWith, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -414,7 +414,7 @@ public class ImmutableArray<T> implements Iterable<T> {
     }
 
     public ImmutableArray<T> append(T[] items, int start, int length, boolean reverseItems) {
-        final var result = Utils_lists.withInsertion(data.items, size(), items, start, length, reverseItems, data.reversed);
+        final var result = Lists.withInsertion(data.items, size(), items, start, length, reverseItems, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -436,7 +436,7 @@ public class ImmutableArray<T> implements Iterable<T> {
     }
 
     public ImmutableArray<T> prepend(T[] items, int start, int length, boolean reverseItems) {
-        final var result = Utils_lists.withInsertion(data.items, 0, items, start, length, reverseItems, data.reversed);
+        final var result = Lists.withInsertion(data.items, 0, items, start, length, reverseItems, data.reversed);
 
         return new ImmutableArray<>(new Data(result, false));
     }
@@ -449,7 +449,7 @@ public class ImmutableArray<T> implements Iterable<T> {
         }
 
         public T next() {
-            return (T) Utils_lists.get(data.items, i, data.reversed);
+            return (T) Lists.get(data.items, i, data.reversed);
         }
 
         public void reset() {
