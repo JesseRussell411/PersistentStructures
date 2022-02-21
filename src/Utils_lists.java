@@ -85,6 +85,7 @@ class Utils_lists {
             throw new IllegalArgumentException("length must be 0 or greater.");
         }
     }
+
     public static class DestPos_SrcPos_Length {
         public final int destPos;
         public final int srcPos;
@@ -215,113 +216,139 @@ class Utils_lists {
     }
 
     //insert
-    public static Object[] withInsertion(Object[] dest, int at, Object[] src) {
-        return withInsertion(dest, at, src, 0, src.length, false, false);
+    public static Object[] withInsertion(Object[] dest, int destPost, Object[] src) {
+        return withInsertion(dest, destPost, src, 0, src.length, false, false);
     }
 
-    public static Object[] withInsertion(Object[] original, int at, Object[] insertion, int start) {
-        return withInsertion(original, at, insertion, start, insertion.length - start, false, false);
+    public static Object[] withInsertion(Object[] dest, int destPost, Object[] src, int srcPos) {
+        return withInsertion(dest, destPost, src, srcPos, src.length - srcPos, false, false);
     }
 
     public static Object[] withInsertion(
-            Object[] original,
-            int at,
-            Object[] insertion,
-            int start,
-            int length,
-            boolean srcReversed,
-            boolean destReversed) {
-        Objects.requireNonNull(original);
-        Objects.requireNonNull(insertion);
-
-        final var bound = bindAt_Start_Length(original.length, insertion.length, at, start, length);
-        if (bound != null) {
-            return _withInsertion(original, bound.at, insertion, bound.start, bound.length, srcReversed, destReversed);
-        } else {
-            return original;
-        }
-    }
-
-    private static Object[] _withInsertion(
             Object[] dest,
-            int at,
+            int destPos,
             Object[] src,
-            int start,
-            int length,
-            boolean srcReversed,
-            boolean destReversed) {
-        final var result = new Object[dest.length + length];
-
-        // copy preceding
-        arrayCopy(dest, 0, result, 0, at, destReversed, false);
-
-        // copy insertion
-        arrayCopy(src, start, result, at, length, srcReversed, false);
-
-        // copy following
-        final var followingStart = at + length;
-        final var followingLength = result.length - followingStart;
-        arrayCopy(dest, at, result, followingStart, followingLength, destReversed, false);
-
-        return result;
-    }
-
-    //set
-    public static Object[] withReplacement(Object[] original, int at, Object[] replacement) {
-        return withInsertion(original, at, replacement, 0, replacement.length, false, false);
-
-    }
-
-    public static Object[] withReplacement(Object[] original, int at, Object[] replacement, int start) {
-        return withInsertion(original, at, replacement, start, replacement.length - start, false, false);
-    }
-
-    public static Object[] withReplacement(
-            Object[] dest,
-            int at,
-            Object[] src,
-            int start,
+            int srcPos,
             int length,
             boolean srcReversed,
             boolean destReversed) {
         Objects.requireNonNull(dest);
         Objects.requireNonNull(src);
 
-        final var bound = bindAt_Start_Length(dest.length, src.length, at, start, length);
+        final var bound = bindDestPosAndSrcPos(dest.length, src.length, destPos, srcPos, length);
+
         if (bound != null) {
-            return _withReplacement(
-                    dest,
-                    bound.at,
-                    src,
-                    bound.start,
-                    Math.min(
-                            bound.length,
-                            dest.length - bound.at),
-                    srcReversed,
-                    destReversed);
+            if (bound.length >= 0) {
+                return _withInsertion(dest,
+                        bound.destPos,
+                        src,
+                        bound.srcPos,
+                        Math.min(
+                                bound.length,
+                                src.length - bound.srcPos),
+                        srcReversed,
+                        destReversed);
+
+            } else {
+                return _withInsertion(dest,
+                        bound.destPos,
+                        src,
+                        bound.srcPos,
+                        Math.max(
+                                bound.length,
+                                -bound.srcPos - 1),
+                        srcReversed,
+                        destReversed);
+            }
         } else {
             return dest;
         }
     }
 
-    private static Object[] _withReplacement(
+    private static Object[] _withInsertion(
             Object[] dest,
-            int at,
+            int destPos,
             Object[] src,
-            int start,
+            int srcPos,
             int length,
             boolean srcReversed,
             boolean destReversed) {
+        final var result = new Object[dest.length + length];
+
+        // copy preceding
+        arrayCopy(dest, 0, result, 0, destPos, destReversed, false);
+
+        // copy insertion
+        if (length >= 0) {
+            arrayCopy(src, srcPos, result, destPos, length, srcReversed, false);
+        } else {
+            arrayCopy(src, srcPos, result, destPos - length - 1, length, srcReversed, false);
+        }
+
+        // copy following
+        final var followingStart = destPos + Math.abs(length);
+        final var followingLength = result.length - followingStart;
+        arrayCopy(dest, destPos, result, followingStart, followingLength, destReversed, false);
+
+        return result;
+    }
+
+    //set
+    public static Object[] withReplacement(Object[] dest, int destPost, Object[] src) {
+        return withInsertion(dest, destPost, src, 0, src.length, false, false);
+
+    }
+
+    public static Object[] withReplacement(Object[] dest, int destPos, Object[] src, int srcPos) {
+        return withInsertion(dest, destPos, src, srcPos, src.length - srcPos, false, false);
+    }
+
+    public static Object[] withReplacement(
+            Object[] dest,
+            int destPos,
+            Object[] src,
+            int srcPos,
+            int length,
+            boolean srcReversed,
+            boolean destReversed) {
+        Objects.requireNonNull(dest);
+        Objects.requireNonNull(src);
+        return _withReplacement(dest, destPos, src, srcPos, length, srcReversed, destReversed);
+    }
+
+    private static Object[] _withReplacement(
+            Object[] dest,
+            int destPos,
+            Object[] src,
+            int srcPos,
+            int length,
+            boolean srcReversed,
+            boolean destReversed) {
+        Objects.requireNonNull(dest);
+        Objects.requireNonNull(src);
+
         final var result = new Object[dest.length];
 
         // copy preceding
-        arrayCopy(dest, start, result, 0, at, destReversed, false);
+        if (length >= 0) {
+            arrayCopy(dest, 0, result, 0, destPos, destReversed, false);
+        } else {
+            arrayCopy(dest, 0, result, 0, destPos + length + 1);
+        }
+
         // copy replacement
-        arrayCopy(src, start, result, at, length, srcReversed, false);
+        arrayCopy(src, srcPos, result, destPos, length, srcReversed, false);
+
         // copy following
-        final var followingStart = at + length;
-        final var followingLength = result.length - followingStart;
-        arrayCopy(dest, followingStart, result, followingStart, followingLength, destReversed, false);
+        if (length >= 0) {
+            final var followingStart = destPos + length;
+            final var followingLength = result.length - followingStart;
+            arrayCopy(dest, followingStart, result, followingStart, followingLength, destReversed, false);
+        } else {
+            final var followingStart = destPos + 1;
+            final var followingLength = result.length - followingStart;
+            arrayCopy(dest, followingStart, result, followingStart, followingLength, destReversed, false);
+        }
 
         return result;
     }
