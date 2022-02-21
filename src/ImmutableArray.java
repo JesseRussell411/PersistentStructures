@@ -19,6 +19,9 @@ public class ImmutableArray<T> implements Iterable<T> {
             this.reversed = reversed;
         }
     }
+
+    private static final Data EMPTY_DATA = new Data(new Object[0], false);
+
     // the fields items and reversed may be over-written in the event that an equal ImmutableArray is found.
     // This is to save memory since there's no point in keeping two separate but equal array instances in memory.
     // However, in order to make ImmutableArray thread safe, I would need to make those fields volatile which would slow
@@ -84,6 +87,10 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     public ImmutableArray(T[] items) {
         this(Arrays.stream(items));
+    }
+
+    public ImmutableArray() {
+        this(EMPTY_DATA);
     }
 
     // ===========
@@ -198,6 +205,7 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     // pop
     public ImmutableArray<T> pop() {
+        if (size() == 0) return this;
         return remove(size() - 1);
     }
 
@@ -208,6 +216,7 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     // pull
     public ImmutableArray<T> pull() {
+        if (size() == 0) return this;
         return remove(0);
     }
 
@@ -317,11 +326,13 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     // pop
     public ImmutableArray<T> pop(int length) {
+        if (size() == 0) return this;
         return remove(size() - length, length);
     }
 
     // pull
     public ImmutableArray<T> pull(int length) {
+        if (size() == 0) return this;
         return remove(0, length);
     }
 
@@ -337,6 +348,7 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     // reverse
     public ImmutableArray<T> reverse() {
+        if (size() <= 1) return this;
         return new ImmutableArray<>(new Data(this.data.items, !this.data.reversed));
     }
 
@@ -385,6 +397,50 @@ public class ImmutableArray<T> implements Iterable<T> {
         return new ImmutableArray<>(new Data(result, false));
     }
 
+    //misc
+    // put
+    public ImmutableArray<T> append(T[] items) {
+        Objects.requireNonNull(items);
+        return append(items, 0, items.length, false);
+    }
+
+    public ImmutableArray<T> append(T[] items, int start) {
+        Objects.requireNonNull(items);
+        return append(items, start, items.length, false);
+    }
+
+    public ImmutableArray<T> append(T[] items, int start, int length) {
+        return append(items, start, length, false);
+    }
+
+    public ImmutableArray<T> append(T[] items, int start, int length, boolean reverseItems) {
+        final var result = Utils_lists.withInsertion(data.items, size(), items, start, length, reverseItems, data.reversed);
+
+        return new ImmutableArray<>(new Data(result, false));
+    }
+
+    // push
+    public ImmutableArray<T> prepend(T[] items) {
+        Objects.requireNonNull(items);
+        return prepend(items, 0, items.length, false);
+    }
+
+    public ImmutableArray<T> prepend(T[] items, int start) {
+        Objects.requireNonNull(items);
+        return prepend(items, start, items.length, false);
+    }
+
+    public ImmutableArray<T> prepend(T[] items, int start, int length) {
+        Objects.requireNonNull(items);
+        return prepend(items, start, length, false);
+    }
+
+    public ImmutableArray<T> prepend(T[] items, int start, int length, boolean reverseItems) {
+        final var result = Utils_lists.withInsertion(data.items, 0, items, start, length, reverseItems, data.reversed);
+
+        return new ImmutableArray<>(new Data(result, false));
+    }
+
     public class SelfIterator implements Iterator<T> {
         private int i = 0;
 
@@ -400,4 +456,6 @@ public class ImmutableArray<T> implements Iterable<T> {
             i = 0;
         }
     }
+
+
 }

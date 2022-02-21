@@ -184,12 +184,26 @@ class Utils_lists {
     private static Object[] _without(Object[] original, int start, int length, boolean reversed) {
         final var result = new Object[original.length - length];
 
-        // copy preceding
-        arrayCopy(original, 0, result, 0, start, reversed, false);
-        // copy following
-        final var followingStart = start + length + 1;
-        final var followingLength = result.length - followingStart;
-        arrayCopy(original, followingStart, result, start, followingLength, reversed, false);
+
+        if (length > 0) {
+            // copy preceding
+            arrayCopy(original, 0, result, 0, start, reversed, false);
+            // copy following
+            final var followingStart = start + length;
+            final var followingLength = original.length - followingStart;
+            arrayCopy(original, followingStart, result, start, followingLength, reversed, false);
+
+        } else if (length < 0) {
+            // copy preceding
+            arrayCopy(original, 0, result, 0, start + length + 1, reversed, false);
+            // copy following
+            final var followingStart = start + 1;
+            final var followingLength = original.length - followingStart;
+            arrayCopy(original, followingStart, result, start, followingLength, reversed, false);
+
+        } else {
+            arrayCopy(original, 0, result, 0, original.length, reversed, false);
+        }
 
         return result;
     }
@@ -235,7 +249,7 @@ class Utils_lists {
         Objects.requireNonNull(dest);
         Objects.requireNonNull(src);
 
-        final var bound = bindDestPosAndSrcPos(dest.length, src.length, destPos, srcPos, length);
+        final var bound = bindDestPosAndSrcPos(dest.length + 1, src.length, destPos, srcPos, length);
 
         if (bound != null) {
             if (bound.length >= 0) {
@@ -273,7 +287,7 @@ class Utils_lists {
             int length,
             boolean srcReversed,
             boolean destReversed) {
-        final var result = new Object[dest.length + length];
+        final var result = new Object[dest.length + Math.abs(length)];
 
         // copy preceding
         arrayCopy(dest, 0, result, 0, destPos, destReversed, false);
