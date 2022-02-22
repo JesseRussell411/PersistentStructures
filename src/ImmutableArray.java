@@ -1,4 +1,5 @@
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -429,6 +430,15 @@ public class ImmutableArray<T> implements Iterable<T> {
 
     public ImmutableArray<T> prepend(T[] items, int start, int length, boolean reverseItems) {
         return insert(0, items, start, length, reverseItems);
+    }
+
+    // misc
+    public ImmutableArray<T> sort(Comparator<T> comparator) {
+        final var result = Lists.sorted(
+                data.items,
+                (a, b) -> comparator.compare((T) a, (T) b));
+
+        return new ImmutableArray<>(new Data(result, false));
     }
 
     public class SelfIterator implements Iterator<T> {

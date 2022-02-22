@@ -31,5 +31,16 @@ public class Main {
         System.out.println(arr);
         arr = arr.remove(4);
         System.out.println(arr);
+        final var old = arr;
+        arr = arr.reverse();
+        System.out.println(arr);
+        arr = arr.replace(3, old, 0, 4);
+        System.out.println(arr);
+        System.out.println(
+                arr.swap(3, null));
+        System.out.println(arr);
+
+
+
     }
 }
