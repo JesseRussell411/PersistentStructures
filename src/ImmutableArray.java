@@ -2,6 +2,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -32,12 +33,13 @@ public class ImmutableArray<T> implements Iterable<T> {
     // so that's why they're being put in one class. Not a record though, I want the default equality behavior.
 
     private Data data;
-    private volatile MemoizedSupplier<Integer> hashSupplier = new MemoizedSupplier<>(() -> {
+
+    private final Supplier<Integer> hashSupplier = new Lazy<>(() -> {
         // get hash code
         return Arrays.hashCode(data.items);
     });
 
-    private volatile MemoizedSupplier<String> stringSupplier = new MemoizedSupplier<>(() -> {
+    private volatile Supplier<String> stringSupplier = new Lazy<>(() -> {
         final StringBuilder result = new StringBuilder();
 
         for (int i = 0; i < size(); i++) {
@@ -52,18 +54,6 @@ public class ImmutableArray<T> implements Iterable<T> {
     private void consolidateEqual(ImmutableArray<?> other, boolean equalTypes) {
         if (equalTypes) {
             data = other.data;
-        }
-
-        if (hashSupplier.cached()) {
-            other.hashSupplier = hashSupplier;
-        } else {
-            hashSupplier = other.hashSupplier;
-        }
-
-        if (stringSupplier.cached()) {
-            other.stringSupplier = stringSupplier;
-        } else {
-            stringSupplier = other.stringSupplier;
         }
     }
 
@@ -122,18 +112,22 @@ public class ImmutableArray<T> implements Iterable<T> {
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof ImmutableArray<?> other) {
+            // quick check
             final var quickEqual = quickEquals(other);
             if (quickEqual != null) return quickEqual;
 
+            // check every item
             final var iterA = iterator();
             final var iterB = other.iterator();
+
+            // whether it's known that both arrays are of equal type.
             boolean equalTypes = false;
 
             while (iterA.hasNext() && iterB.hasNext()) {
                 final var nextA = iterA.next();
                 final var nextB = iterB.next();
 
-                // The things we do when java has type erasure.  ):
+                // The things we do when java has type erasure.
                 if (!equalTypes && nextA != null && nextB != null) {
                     if (nextA.getClass() == nextB.getClass()) {
                         equalTypes = true;
