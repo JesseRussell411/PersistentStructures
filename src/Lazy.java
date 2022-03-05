@@ -6,6 +6,14 @@ class Lazy<T> implements Supplier<T> {
     private volatile RuntimeException error;
     private volatile Supplier<T> supplier;
 
+    public boolean isResolved(){
+        return error == null && supplier == null;
+    }
+
+    public boolean isRejected(){
+        return error != null;
+    }
+
     public Lazy(Supplier<T> supplier) {
         Objects.requireNonNull(supplier);
         this.supplier = supplier;
