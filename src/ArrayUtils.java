@@ -1,20 +1,21 @@
+import java.util.Comparator;
 import java.util.Objects;
 
 public class ArrayUtils {
 
-    public Object[] remove(Object[] original, int start, int length) {
+    public static Object[] remove(Object[] original, int start, int length) {
         return remove(original, start, length, false, false);
     }
 
-    public Object[] remove(Object[] original, int start, int length, boolean reversed) {
+    public static Object[] remove(Object[] original, int start, int length, boolean reversed) {
         return remove(original, start, length, reversed, false);
     }
 
-    public Object[] remove(Object[] original, int start, int length, boolean reversed, boolean reverseResult) {
+    public static Object[] remove(Object[] original, int start, int length, boolean reversed, boolean reverseResult) {
         Objects.requireNonNull(original);
         requireRangeInBounds(start, length, original.length);
-        if (length == 0) return original;
-
+        // shortcuts //
+        if (length == 0 && reversed == reverseResult) return original;
         final var result = new Object[original.length - length];
         final var end = start + length;
 
@@ -27,7 +28,7 @@ public class ArrayUtils {
         return result;
     }
 
-    public Object[] replace(
+    public static Object[] replace(
             Object[] destination,
             int destinationStart,
             Object[] source) {
@@ -35,7 +36,7 @@ public class ArrayUtils {
         return replace(destination, destinationStart, source, 0, source.length, false, false, false);
     }
 
-    public Object[] replace(
+    public static Object[] replace(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -44,7 +45,7 @@ public class ArrayUtils {
         return replace(destination, destinationStart, source, sourceStart, source.length - sourceStart, false, false, false);
     }
 
-    public Object[] replace(
+    public static Object[] replace(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -53,7 +54,7 @@ public class ArrayUtils {
         return replace(destination, destinationStart, source, sourceStart, length, false, false, false);
     }
 
-    public Object[] replace(
+    public static Object[] replace(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -63,7 +64,7 @@ public class ArrayUtils {
         return replace(destination, destinationStart, source, sourceStart, length, destinationReversed, false, false);
     }
 
-    public Object[] replace(
+    public static Object[] replace(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -75,7 +76,7 @@ public class ArrayUtils {
                 destinationReversed, sourceReversed, false);
     }
 
-    public Object[] replace(
+    public static Object[] replace(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -88,8 +89,10 @@ public class ArrayUtils {
         Objects.requireNonNull(source);
         requireRangeInBounds(destinationStart, length, destination.length);
         requireRangeInBounds(sourceStart, length, source.length);
-        if (length == 0) return destination;
-        if (length == destination.length && length == source.length) return source;
+
+        // shortcuts //
+        if (length == 0 && destinationReversed == reverseResult) return destination;
+        if (length == destination.length && length == source.length && sourceReversed == reverseResult) return source;
 
         final var result = new Object[destination.length];
         final var destinationEnd = destinationStart + length;
@@ -109,19 +112,21 @@ public class ArrayUtils {
         return result;
     }
 
-    public Object[] get(Object[] original, int start, int length) {
+    public static Object[] get(Object[] original, int start, int length) {
         return get(original, start, length, false, false, );
     }
 
-    public Object[] get(Object[] original, int start, int length, boolean reversed) {
+    public static Object[] get(Object[] original, int start, int length, boolean reversed) {
         return get(original, start, length, reversed, false);
     }
 
-    public Object[] get(Object[] original, int start, int length, boolean reversed, boolean reverseResult) {
+    public static Object[] get(Object[] original, int start, int length, boolean reversed, boolean reverseResult) {
         Objects.requireNonNull(original);
         requireRangeInBounds(start, length, original.length);
+
+        // shortcuts //
         if (length == 0) return new Object[0];
-        if (length == original.length) return original;
+        if (length == original.length && reversed == reverseResult) return original;
 
         final var result = new Object[length];
 
@@ -131,7 +136,7 @@ public class ArrayUtils {
         return result;
     }
 
-    public Object[] insert(
+    public static Object[] insert(
             Object[] destination,
             int destinationStart,
             Object[] source) {
@@ -139,7 +144,7 @@ public class ArrayUtils {
         return insert(destination, destinationStart, source, 0, source.length, false, false, false);
     }
 
-    public Object[] insert(
+    public static Object[] insert(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -148,7 +153,7 @@ public class ArrayUtils {
         return insert(destination, destinationStart, source, sourceStart, source.length - sourceStart, false, false, false);
     }
 
-    public Object[] insert(
+    public static Object[] insert(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -157,7 +162,7 @@ public class ArrayUtils {
         return insert(destination, destinationStart, source, sourceStart, length, false, false, false);
     }
 
-    public Object[] insert(
+    public static Object[] insert(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -167,7 +172,7 @@ public class ArrayUtils {
         return insert(destination, destinationStart, source, sourceStart, length, destinationReversed, false, false);
     }
 
-    public Object[] insert(
+    public static Object[] insert(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -178,7 +183,7 @@ public class ArrayUtils {
         return insert(destination, destinationStart, source, sourceStart, length, destinationReversed, sourceReversed, false);
     }
 
-    public Object[] insert(
+    public static Object[] insert(
             Object[] destination,
             int destinationStart,
             Object[] source,
@@ -191,7 +196,9 @@ public class ArrayUtils {
         Objects.requireNonNull(source);
         requireIndexInBounds(destinationStart, destinationStart + 1);
         requireRangeInBounds(sourceStart, length, source.length);
-        if (length == 0) return destination;
+
+        // shortcuts //
+        if (length == 0 && destinationReversed == reverseResult) return destination;
 
         final var result = new Object[destination.length + length];
         final var rangeEnd = destinationStart + length;
@@ -213,27 +220,27 @@ public class ArrayUtils {
 
     // single
 
-    public Object[] remove(Object[] original, int index) {
+    public static Object[] remove(Object[] original, int index) {
         return remove(original, index, false, false);
     }
 
-    public Object[] remove(Object[] original, int index, boolean reversed) {
+    public static Object[] remove(Object[] original, int index, boolean reversed) {
         return remove(original, index, reversed, false);
     }
 
-    public Object[] remove(Object[] original, int index, boolean reversed, boolean reverseResult) {
+    public static Object[] remove(Object[] original, int index, boolean reversed, boolean reverseResult) {
         return remove(original, index, 1, reversed, reverseResult);
     }
 
-    public Object[] set(Object[] destination, int index, Object item) {
+    public static Object[] set(Object[] destination, int index, Object item) {
         return set(destination, index, item, false, false);
     }
 
-    public Object[] set(Object[] destination, int index, Object item, boolean reversed) {
+    public static Object[] set(Object[] destination, int index, Object item, boolean reversed) {
         return set(destination, index, item, reversed, false);
     }
 
-    public Object[] set(Object[] destination, int index, Object item, boolean reversed, boolean reverseResult) {
+    public static Object[] set(Object[] destination, int index, Object item, boolean reversed, boolean reverseResult) {
         Objects.requireNonNull(destination);
         requireIndexInBounds(index, destination.length);
 
@@ -253,25 +260,25 @@ public class ArrayUtils {
         return result;
     }
 
-    public Object get(Object[] from, int index) {
+    public static Object get(Object[] from, int index) {
         return get(from, index, false);
     }
 
-    public Object get(Object[] from, int index, boolean reversed) {
+    public static Object get(Object[] from, int index, boolean reversed) {
         Objects.requireNonNull(from);
         requireIndexInBounds(index, from.length);
         return from[reverseIndexIf(reversed, index, from.length)];
     }
 
-    public Object[] add(Object[] destination, int index, Object item) {
+    public static Object[] add(Object[] destination, int index, Object item) {
         return add(destination, index, item, false, false);
     }
 
-    public Object[] add(Object[] destination, int index, Object item, boolean reversed) {
+    public static Object[] add(Object[] destination, int index, Object item, boolean reversed) {
         return add(destination, index, item, reversed, false);
     }
 
-    public Object[] add(Object[] destination, int index, Object item, boolean reversed, boolean reverseResult) {
+    public static Object[] add(Object[] destination, int index, Object item, boolean reversed, boolean reverseResult) {
         Objects.requireNonNull(destination);
         requireIndexInBounds(index, destination.length + 1);
 
@@ -291,7 +298,7 @@ public class ArrayUtils {
         return result;
     }
 
-    public void arraycopy(
+    public static void arraycopy(
             Object[] source,
             int sourceStart,
             Object[] destination,
@@ -316,11 +323,59 @@ public class ArrayUtils {
         }
     }
 
-    public int requireIndexInBounds(int index, int upper) {
+
+    public static Object[] copyOf(Object[] original) {
+        return copyOf(original, original.length);
+    }
+
+    public static Object[] copyOf(Object[] original, boolean originalReversed) {
+        return copyOf(original, original.length, originalReversed);
+    }
+
+    public static Object[] copyOf(Object[] original, boolean originalReversed, boolean reverseResult) {
+        return copyOf(original, original.length, originalReversed, reverseResult);
+    }
+
+    public static Object[] copyOf(Object[] original, int length) {
+        return copyOf(original, length);
+    }
+
+    public static Object[] copyOf(Object[] original, int length, boolean originalReversed) {
+        return copyOf(original, length, originalReversed, false);
+    }
+
+    public static Object[] copyOf(Object[] original, int length, boolean originalReversed, boolean reverseResult) {
+        final var result = new Object[length];
+        arraycopy(original, 0, result, 0, Math.min(original.length, length), originalReversed, reverseResult);
+        return result;
+    }
+
+    public static <T> boolean isSorted(T[] items, Comparator<T> comparator, boolean reversed) {
+        Objects.requireNonNull(items);
+        Objects.requireNonNull(comparator);
+        T prev;
+        if (reversed) {
+            prev = items[items.length - 1];
+            for (int i = items.length - 2; i >= 0; i--) {
+                if (comparator.compare(prev, items[i]) > 0) return false;
+                prev = items[i];
+            }
+        } else {
+            prev = items[0];
+            for (int i = 1; i < items.length; i++) {
+                if (comparator.compare(prev, items[i]) > 0) return false;
+                prev = items[i];
+            }
+        }
+
+        return true;
+    }
+
+    public static int requireIndexInBounds(int index, int upper) {
         return requireIndexInBounds(0, index, upper);
     }
 
-    public int requireIndexInBounds(int lower, int index, int upper) {
+    public static int requireIndexInBounds(int lower, int index, int upper) {
         if (lower <= index && index < upper) {
             return index;
         } else {
@@ -328,11 +383,11 @@ public class ArrayUtils {
         }
     }
 
-    public int requireRangeInBounds(int start, int length, int upper) {
+    public static int requireRangeInBounds(int start, int length, int upper) {
         return requireRangeInBounds(0, start, length, upper);
     }
 
-    public int requireRangeInBounds(int lower, int start, int length, int upper) {
+    public static int requireRangeInBounds(int lower, int start, int length, int upper) {
         if (lower > start) throw new IndexOutOfBoundsException(start);
 
         requireNonNegative(length);
@@ -342,7 +397,7 @@ public class ArrayUtils {
         return start;
     }
 
-    public int requireNonNegative(int number) {
+    public static int requireNonNegative(int number) {
         if (number >= 0) {
             return number;
         } else {
@@ -350,7 +405,15 @@ public class ArrayUtils {
         }
     }
 
-    public int reverseIndexIf(boolean condition, int index, int length) {
+    public static int requireNonNegativeArraySize(int size) {
+        if (size >= 0) {
+            return size;
+        } else {
+            throw new NegativeArraySizeException();
+        }
+    }
+
+    public static int reverseIndexIf(boolean condition, int index, int length) {
         if (condition) {
             return reverseIndex(index, length);
         } else {
@@ -358,7 +421,7 @@ public class ArrayUtils {
         }
     }
 
-    public int reverseIndex(int index, int length) {
+    public static int reverseIndex(int index, int length) {
         return length - index - 1;
     }
 }
