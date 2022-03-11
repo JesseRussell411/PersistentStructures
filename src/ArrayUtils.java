@@ -298,6 +298,9 @@ public class ArrayUtils {
         return result;
     }
 
+    //=======================
+    // misc array operations
+    //=======================
     public static void arraycopy(
             Object[] source,
             int sourceStart,
@@ -323,13 +326,12 @@ public class ArrayUtils {
         }
     }
 
-
     public static Object[] copyOf(Object[] original) {
-        return copyOf(original, original.length);
+        return copyOf(original, original.length, false, false);
     }
 
     public static Object[] copyOf(Object[] original, boolean originalReversed) {
-        return copyOf(original, original.length, originalReversed);
+        return copyOf(original, original.length, originalReversed, false);
     }
 
     public static Object[] copyOf(Object[] original, boolean originalReversed, boolean reverseResult) {
@@ -337,7 +339,7 @@ public class ArrayUtils {
     }
 
     public static Object[] copyOf(Object[] original, int length) {
-        return copyOf(original, length);
+        return copyOf(original, length, false, false);
     }
 
     public static Object[] copyOf(Object[] original, int length, boolean originalReversed) {
@@ -348,6 +350,10 @@ public class ArrayUtils {
         final var result = new Object[length];
         arraycopy(original, 0, result, 0, Math.min(original.length, length), originalReversed, reverseResult);
         return result;
+    }
+
+    public static <T> boolean isSorted(T[] items, Comparator<T> comparator) {
+        return isSorted(items, comparator, false);
     }
 
     public static <T> boolean isSorted(T[] items, Comparator<T> comparator, boolean reversed) {
@@ -370,6 +376,42 @@ public class ArrayUtils {
 
         return true;
     }
+
+    public static Object[][] partition(Object[] items, int size, boolean reversed, boolean reverseResults) {
+        Objects.requireNonNull(items);
+
+        if (size >= items.length) {
+            if (reversed == reverseResults) {
+                return new Object[][]{items};
+            } else {
+                return new Object[][]{copyOf(items, reversed, reverseResults)};
+            }
+        }
+
+        final var count = items.length / size;
+        final var remainder = items.length % size;
+        final var totalCount = count + remainder > 0 ? 1 : 0;
+
+        final var result = new Object[totalCount][];
+
+        // copy whole partitions
+        for (int i = 0; i < count; i++) {
+            final var partition = get(items, i * size, (i + 1) * size, reversed, reverseResults);
+            result[i] = partition;
+        }
+
+        // copy remainder partition
+        if (totalCount > count) {
+            final var partition = get(items, items.length - remainder, remainder, reversed, reverseResults);
+            result[result.length - 1] = partition;
+        }
+
+        return result;
+    }
+
+    //=======================
+    // requirement functions
+    //=======================
 
     public static int requireIndexInBounds(int index, int upper) {
         return requireIndexInBounds(0, index, upper);
@@ -413,6 +455,9 @@ public class ArrayUtils {
         }
     }
 
+    //====================
+    // index manipulation
+    //====================
     public static int reverseIndexIf(boolean condition, int index, int length) {
         if (condition) {
             return reverseIndex(index, length);
